@@ -81,6 +81,7 @@ const LEVELING_MEDIA_TYPES = Object.freeze({
 });
 const PUBLIC_ASSETS = new Map([
   ['/admin/brand-icon.png', ['brand-icon.png', 'image/png']],
+  ['/images/imageIcon.png', ['imageIcon.png', 'image/png']],
   ['/admin/emojiData.js', ['emojiData.js', 'application/javascript; charset=utf-8']],
   ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
   ['/admin/inventory.js', ['inventory.js', 'application/javascript; charset=utf-8']],

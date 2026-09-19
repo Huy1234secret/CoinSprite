@@ -427,6 +427,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .sidebar-footer small { overflow: hidden; color: var(--faint); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
 
 .workspace { min-width: 0; width: 100%; max-width: 1480px; margin: 0 auto; padding: clamp(30px, 4vw, 56px) clamp(24px, 4vw, 60px) 116px; }
+.workspace:has(#levelingView.active) { max-width: none; padding-right: 5px; padding-left: 5px; }
+#levelingView { max-width: none; margin-inline: 0; }
 .view { width: 100%; }
 .view.active { animation: view-enter .22s ease-out both; }
 @keyframes view-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
@@ -505,6 +507,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .counting-channel-setting + .counting-channel-setting { margin-top: 9px; }
 .empty-state { display: grid; gap: 7px; border-color: var(--line); border-radius: 9px; color: var(--muted); background: var(--panel-2); }
 .setting-card, .field-card, .switch-card, .xp-drop-channel-card { border-color: var(--line); border-radius: 9px; color: var(--soft); background: var(--panel-2); }
+.heading-inline-controls .heading-select-card,
+.xp-drop-head-actions .xp-drop-channel-card { min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
 .setting-card:hover, .field-card:hover, .switch-card:hover { border-color: #454a55; }
 .setting-card input, .field-card select, .field-card textarea, .reward-row input, .reward-row select,
 .xp-drop-fields input:not([type="checkbox"]):not([type="color"]), .xp-drop-fields select,

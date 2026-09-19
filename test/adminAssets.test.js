@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
+const http = require('node:http');
 const path = require('node:path');
 const test = require('node:test');
 
@@ -11,6 +12,7 @@ const {
   loadAdminAsset,
   loadAdminFont,
 } = require('../src/adminAssets');
+const { routeRequest } = require('../src/adminServer');
 const root = path.join(__dirname, '..');
 
 test('admin entrypoint receives content-derived JavaScript, emoji data, and stylesheet versions', () => {
@@ -46,13 +48,20 @@ test('Leveling dashboard uses compact headers, shared media tiles, and real disa
   assert.match(html, /class="workspace-head leveling-workspace-head"[^]*?<h1>Leveling<\/h1>/);
   assert.doesNotMatch(html, /Turn activity into progress|Random XP feels natural|Click any text inside the message|Drop collectible crates on a schedule/);
   assert.doesNotMatch(html, /Send a test crate|id="xpDropTestButton"/);
+  assert.doesNotMatch(html, /Enable the channels that award XP, then tune each channel from ×0 to ×10\.|Image gallery|Above message|Below message/);
   assert.match(app, /function mediaGalleryEditorHtml/);
-  assert.match(app, /gallery\.push\(''\); state\.levelingComposerPanel = 'gallery'/);
+  assert.match(app, /function openMediaPopover/);
+  assert.match(app, /className = 'media-popover'/);
+  assert.match(app, /gallery\.push\(''\)/);
+  assert.match(app, /const MEDIA_ICON_URL = '\/images\/imageIcon\.png'/);
+  assert.doesNotMatch(app, /data-leveling-gallery-pos|gallery-position-toggle|media-gallery-editor|thumbnail-inline-picker|media-slot-picker/);
   assert.match(app, /control\.dataset\.levelingDisabled = 'true';\s*control\.disabled = true/);
   assert.match(app, /setAttribute\('aria-disabled', String\(disabled\)\)/);
   assert.doesNotMatch(app, /token: '\{crate\}'/);
   assert.match(app, /token: '\{crate_name\}'/);
   assert.match(style, /\.discord-gallery\.media-count-3 img:first-child/);
+  assert.match(style, /\.media-popover \{[^}]*position: fixed;[^}]*z-index: 10000;/s);
+  assert.doesNotMatch(style, /\.selected \.xp-channel-toggle > i/);
   assert.match(style, /\.leveling-channels-boosts-grid \{ grid-template-columns: repeat\(3/);
   assert.match(style, /\.ignored-channel-list \{ grid-template-columns: 1fr/);
 });
@@ -89,6 +98,40 @@ test('shared CoinSprite brand icon is available to the public dashboard', () => 
   const server = fs.readFileSync(path.join(root, 'src', 'adminServer.js'), 'utf8');
   assert.match(server, /\['\/admin\/dashboard\.css', \['dashboard\.css', 'text\/css; charset=utf-8'\]\]/);
   for (const removed of ['chances.html', 'chances.css', 'chances.js']) assert.equal(loadAdminAsset(removed), null);
+});
+
+test('shared media placeholder icon is served from its dashboard URL', () => {
+  const icon = loadAdminAsset('imageIcon.png');
+  assert.ok(icon);
+  assert.ok(icon.data.length > 1_000);
+  assert.match(icon.version, /^[a-f0-9]{16}$/);
+  const server = fs.readFileSync(path.join(root, 'src', 'adminServer.js'), 'utf8');
+  assert.match(server, /\['\/images\/imageIcon\.png', \['imageIcon\.png', 'image\/png'\]\]/);
+});
+
+test('shared media placeholder URL returns the PNG asset over HTTP', async () => {
+  const server = http.createServer((req, res) => routeRequest(req, res, {}, {}).catch((error) => {
+    res.statusCode = 500;
+    res.end(error.message);
+  }));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/images/imageIcon.png`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'image/png');
+    assert.ok((await response.arrayBuffer()).byteLength > 1_000);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('shared media editor cleans empty slots and isolates XP Drop from Claim', () => {
+  const app = loadAdminAsset('app.js').data.toString('utf8');
+  assert.match(app, /const stem = scope === 'xpDrop' \? 'drop' : 'claim'/);
+  assert.match(app, /galleryKey: `\$\{stem\}GalleryUrls`/);
+  assert.match(app, /\.map\(\(value\) => String\(value \|\| ''\)\.trim\(\)\)\.filter\(Boolean\)/);
+  assert.match(app, /if \(gallery\.length >= MAX_GALLERY_IMAGES\)/);
+  assert.match(app, /data-media-container="\$\{containerIndex\}"/);
 });
 
 test('stylesheet and bundled font URLs use recursive content hashes', () => {

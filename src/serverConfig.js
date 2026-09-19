@@ -302,7 +302,7 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
         thumbnailUrl: cleanLevelingMediaUrl(layoutSource.thumbnailUrl),
         galleryUrls: [...new Set((Array.isArray(layoutSource.galleryUrls) ? layoutSource.galleryUrls : [])
           .map(cleanLevelingMediaUrl).filter(Boolean))].slice(0, 10),
-        galleryPosition: ['top', 'bottom'].includes(layoutSource.galleryPosition) ? layoutSource.galleryPosition : (layoutDefaults.galleryPosition || 'bottom'),
+        galleryPosition: 'bottom',
       },
       additionalContainers: normalizeAdditionalMessageContainers(source.announcements?.additionalContainers, {
         cleanMedia: cleanLevelingMediaUrl,

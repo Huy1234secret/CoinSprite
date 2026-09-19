@@ -48,10 +48,10 @@ function resolvedLayout(layout = {}, values = {}) {
 function messageContentComponents(content, layout = {}, _label = 'Message', options = {}) {
   const thumbnailUrl = layout.thumbnailEnabled ? safeMediaUrl(layout.thumbnailUrl) : '';
   const galleryUrls = [...new Set((layout.galleryUrls || []).map(safeMediaUrl).filter(Boolean))].slice(0, 10);
-  const galleryPosition = layout.galleryPosition || 'bottom';
 
   if (Array.isArray(layout.blocks) && layout.blocks.length > 0) {
     const components = [];
+    const deferredGalleries = [];
     let thumbnailPlaced = false;
     for (const block of layout.blocks) {
       if (block.type === 'text') {
@@ -70,7 +70,7 @@ function messageContentComponents(content, layout = {}, _label = 'Message', opti
       } else if (block.type === 'gallery') {
         const urls = [...new Set((block.urls || galleryUrls || []).map(safeMediaUrl).filter(Boolean))].slice(0, 10);
         if (urls.length) {
-          components.push({
+          deferredGalleries.push({
             type: 12,
             items: urls.map((url) => ({ media: { url } })),
           });
@@ -90,6 +90,7 @@ function messageContentComponents(content, layout = {}, _label = 'Message', opti
         accessory: { type: 11, media: { url: thumbnailUrl } },
       });
     }
+    components.push(...deferredGalleries);
     return components;
   }
 
@@ -131,14 +132,8 @@ function messageContentComponents(content, layout = {}, _label = 'Message', opti
     items: galleryUrls.map((url) => ({ media: { url } })),
   } : null;
 
-  const components = [];
-  if (galleryPosition === 'top' && galleryComponent) {
-    components.push(galleryComponent);
-  }
-  components.push(...textComponents);
-  if (galleryPosition !== 'top' && galleryComponent) {
-    components.push(galleryComponent);
-  }
+  const components = [...textComponents];
+  if (galleryComponent) components.push(galleryComponent);
   return components;
 }
 

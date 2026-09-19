@@ -340,7 +340,7 @@ test('role boosts multiply when mode is stackable and cap at ten', () => {
   });
 });
 
-test('level-up composer places media gallery above message when galleryPosition is top', () => {
+test('level-up composer normalizes legacy top galleries below the message', () => {
   const payload = levelUpAnnouncementPayload('Level up content!', {
     announcements: {
       layout: {
@@ -352,14 +352,15 @@ test('level-up composer places media gallery above message when galleryPosition 
       },
     },
   });
-  assert.equal(payload.components[0].components[0].type, 12); // Media gallery first
-  assert.equal(payload.components[0].components[1].type, 10); // Text component second
+  assert.equal(payload.components[0].components[0].type, 10); // Text component first
+  assert.equal(payload.components[0].components[1].type, 12); // Media gallery last
 });
 
 test('XP drop supports {crate} in media templates and resolves to crate image', () => {
   const normalized = normalizeLevelingConfig({
     announcements: {
       layout: {
+        galleryPosition: 'top',
         thumbnailUrl: '{crate}',
         galleryUrls: ['{crate}', '', 'https://example.com/level.png'],
       },
@@ -372,6 +373,7 @@ test('XP drop supports {crate} in media templates and resolves to crate image', 
     },
   });
   assert.equal(normalized.announcements.layout.thumbnailUrl, '');
+  assert.equal(normalized.announcements.layout.galleryPosition, 'bottom');
   assert.deepEqual(normalized.announcements.layout.galleryUrls, ['https://example.com/level.png']);
   assert.equal(normalized.xpDrops.dropThumbnailUrl, '{crate}');
   assert.equal(normalized.xpDrops.claimThumbnailUrl, '{user_profile}');

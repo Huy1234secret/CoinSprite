@@ -24,6 +24,8 @@
   const DEFAULT_EMOJI_DATA_URL = document.querySelector('#emojiDataAsset')?.dataset.src || '/admin/emojiData.js';
   const EMOJI_RENDER_BATCH = 96;
   const EMOJI_SEARCH_DEBOUNCE_MS = 120;
+  const MEDIA_ICON_URL = '/images/imageIcon.png';
+  const MAX_GALLERY_IMAGES = 10;
   let DEFAULT_EMOJI_DATA = window.COINSPRITE_EMOJI_DATA || EMPTY_EMOJI_DATA;
   let defaultEmojiDataPromise = null;
   let emojiSearchTimer = null;
@@ -124,6 +126,7 @@
     cardPreviewRequest: 0,
     cardPreviewHash: '',
     cardPreviewTimer: null,
+    mediaPopover: null,
   };
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -149,7 +152,7 @@
     levelingAddReward: $('#levelingAddReward'), levelingBoosts: $('#levelingBoosts'), levelingAddBoost: $('#levelingAddBoost'),
     roleBoostModeHighest: $('#roleBoostModeHighest'), roleBoostModeStackable: $('#roleBoostModeStackable'),
     levelingContainerAdd: $('#levelingContainerAdd'), levelingAdditionalContainerAdd: $('#levelingAdditionalContainerAdd'),
-    levelingThumbnailControl: $('#levelingThumbnailControl'), levelingThumbnailPanel: $('#levelingThumbnailPanel'),
+    levelingThumbnailControl: $('#levelingThumbnailControl'),
     levelingGalleryAdd: $('#levelingGalleryAdd'), levelingEmojiToggle: $('#levelingEmojiToggle'),
     levelingComposerPanel: $('#levelingComposerPanel'),
     levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'), levelingAdditionalContainers: $('#levelingAdditionalContainers'),
@@ -181,8 +184,8 @@
     xpDropsEnabled: $('#xpDropsEnabled'), xpDropChannel: $('#xpDropChannel'), xpDropAdd: $('#xpDropAdd'), xpDropList: $('#xpDropList'),
     xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'), xpDropEmojiToggle: $('#xpDropEmojiToggle'), xpClaimEmojiToggle: $('#xpClaimEmojiToggle'),
     xpDropGalleryAdd: $('#xpDropGalleryAdd'), xpClaimGalleryAdd: $('#xpClaimGalleryAdd'),
-    xpDropThumbnailControl: $('#xpDropThumbnailControl'), xpDropThumbnailPanel: $('#xpDropThumbnailPanel'),
-    xpClaimThumbnailControl: $('#xpClaimThumbnailControl'), xpClaimThumbnailPanel: $('#xpClaimThumbnailPanel'),
+    xpDropThumbnailControl: $('#xpDropThumbnailControl'),
+    xpClaimThumbnailControl: $('#xpClaimThumbnailControl'),
     reactionRoleCreate: $('#reactionRoleCreate'), reactionRoleEmptyCreate: $('#reactionRoleEmptyCreate'), reactionRoleCount: $('#reactionRoleCount'), reactionRoleList: $('#reactionRoleList'),
     reactionRoleEmpty: $('#reactionRoleEmpty'), reactionRoleEditor: $('#reactionRoleEditor'), reactionRoleStatus: $('#reactionRoleStatus'), reactionRoleName: $('#reactionRoleName'), reactionRolePublishedState: $('#reactionRolePublishedState'), reactionRoleEnabled: $('#reactionRoleEnabled'),
     reactionRoleDuplicate: $('#reactionRoleDuplicate'), reactionRoleDelete: $('#reactionRoleDelete'), reactionRoleUseTemplate: $('#reactionRoleUseTemplate'), reactionRoleEmojiToggle: $('#reactionRoleEmojiToggle'), reactionRoleVariablesToggle: $('#reactionRoleVariablesToggle'), reactionRoleContainerToggle: $('#reactionRoleContainerToggle'), reactionRoleAdditionalContainer: $('#reactionRoleAdditionalContainer'), reactionRoleGalleryToggle: $('#reactionRoleGalleryToggle'),
@@ -357,8 +360,7 @@
       ? String(source.announcements.layout.thumbnailUrl).trim() : '';
     source.announcements.layout.galleryUrls = [...new Set((Array.isArray(source.announcements.layout.galleryUrls) ? source.announcements.layout.galleryUrls : [])
       .map((url) => String(url).trim()).filter(validMediaTemplate))].slice(0, 10);
-    source.announcements.layout.galleryPosition = ['top', 'bottom'].includes(String(source.announcements.layout.galleryPosition).toLowerCase())
-      ? source.announcements.layout.galleryPosition.toLowerCase() : 'bottom';
+    source.announcements.layout.galleryPosition = 'bottom';
     source.announcements.additionalContainers = normalizeAdditionalContainersClient(source.announcements.additionalContainers, (layout) => {
       const normalized = layout && typeof layout === 'object' && !Array.isArray(layout) ? layout : {};
       return {
@@ -368,7 +370,7 @@
         thumbnailUrl: validMediaTemplate(normalized.thumbnailUrl) ? String(normalized.thumbnailUrl).trim() : '',
         galleryUrls: [...new Set((Array.isArray(normalized.galleryUrls) ? normalized.galleryUrls : [])
           .map((url) => String(url).trim()).filter(validMediaTemplate))].slice(0, 10),
-        galleryPosition: ['top', 'bottom'].includes(String(normalized.galleryPosition).toLowerCase()) ? normalized.galleryPosition.toLowerCase() : 'bottom',
+        galleryPosition: 'bottom',
       };
     });
     source.channelMultipliers = Object.fromEntries(Object.entries(source.channelMultipliers || {}).map(([id, multiplier]) => [
@@ -519,7 +521,7 @@
 
   function roleColor(roleId) {
     const color = (state.directory.roles || []).find((role) => role.id === roleId)?.color;
-    return /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#99a1a6';
+    return /^#[0-9a-f]{6}$/i.test(color || '') && color.toLowerCase() !== '#000000' ? color : '#99a1a6';
   }
 
   function roleUnavailableReason(role) {
@@ -574,143 +576,26 @@
   }
 
   function updateThumbnailControlUI(scope) {
+    const configure = (control, enabled, source, label) => {
+      if (!control) return;
+      const previewUrl = enabled ? previewMediaUrl(source) : '';
+      control.classList.toggle('has-thumbnail', Boolean(previewUrl));
+      control.dataset.mediaScope = scope;
+      control.dataset.mediaContainer = '-1';
+      control.dataset.mediaKind = 'thumbnail';
+      control.setAttribute('aria-expanded', 'false');
+      control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl || MEDIA_ICON_URL)}" alt=""><span class="thumbnail-control-action">${previewUrl ? 'Change' : 'Upload'}</span>`;
+      control.setAttribute('aria-label', `${previewUrl ? 'Change' : 'Upload'} ${label}`);
+    };
     if (scope === 'leveling') {
       const layout = state.config?.leveling?.announcements?.layout;
-      const control = elements.levelingThumbnailControl;
-      if (!control || !layout) return;
-      const hasThumb = layout.thumbnailEnabled && Boolean(layout.thumbnailUrl);
-      control.classList.toggle('has-thumbnail', hasThumb);
-      const previewUrl = hasThumb ? previewMediaUrl(layout.thumbnailUrl) : '';
-      control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl || '/images/imageIcon.png')}" alt=""><span class="thumbnail-control-action">${previewUrl ? 'Change' : 'Upload'}</span>`;
-      control.setAttribute('aria-label', previewUrl ? 'Change thumbnail' : 'Upload thumbnail');
+      if (layout) configure(elements.levelingThumbnailControl, layout.thumbnailEnabled, layout.thumbnailUrl, 'thumbnail');
     } else if (scope === 'xpDrop') {
       const xpDrops = state.config?.leveling?.xpDrops;
-      const control = elements.xpDropThumbnailControl;
-      if (!control || !xpDrops) return;
-      const hasThumb = xpDrops.dropThumbnailEnabled !== false;
-      control.classList.toggle('has-thumbnail', hasThumb);
-      const previewUrl = hasThumb ? previewMediaUrl(xpDrops.dropThumbnailUrl || '{crate}') : '';
-      control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl || '/images/imageIcon.png')}" alt=""><span class="thumbnail-control-action">${previewUrl ? 'Change' : 'Upload'}</span>`;
-      control.setAttribute('aria-label', previewUrl ? 'Change drop thumbnail' : 'Upload drop thumbnail');
+      if (xpDrops) configure(elements.xpDropThumbnailControl, xpDrops.dropThumbnailEnabled !== false, xpDrops.dropThumbnailUrl || '{crate}', 'drop thumbnail');
     } else if (scope === 'xpClaim') {
       const xpDrops = state.config?.leveling?.xpDrops;
-      const control = elements.xpClaimThumbnailControl;
-      if (!control || !xpDrops) return;
-      const hasThumb = xpDrops.claimThumbnailEnabled === true;
-      control.classList.toggle('has-thumbnail', hasThumb);
-      const previewUrl = hasThumb ? previewMediaUrl(xpDrops.claimThumbnailUrl || '{user_profile}') : '';
-      control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl || '/images/imageIcon.png')}" alt=""><span class="thumbnail-control-action">${previewUrl ? 'Change' : 'Upload'}</span>`;
-      control.setAttribute('aria-label', previewUrl ? 'Change claim thumbnail' : 'Upload claim thumbnail');
-    }
-  }
-
-  function renderThumbnailPanel(scope) {
-    if (scope === 'leveling') {
-      const panel = elements.levelingThumbnailPanel;
-      const layout = state.config?.leveling?.announcements?.layout;
-      if (!panel || !layout) return;
-      panel.innerHTML = `<div class="thumbnail-panel-inner">
-        <div class="thumbnail-panel-header">
-          <strong>Thumbnail image</strong>
-          <button type="button" class="thumbnail-panel-close" data-close-thumbnail="leveling" aria-label="Close">&times;</button>
-        </div>
-        <div class="thumbnail-panel-field">
-          <label>
-            <span>Image URL or variable</span>
-            <input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl || '')}" placeholder="{user_profile} or https://..." data-leveling-thumbnail-url>
-          </label>
-          <div class="variable-quick-pills" style="display:flex;gap:6px;margin-top:6px;">
-            <button type="button" class="button tiny ghost" data-insert-thumb-var="{user_profile}" data-thumb-scope="leveling"><code>{user_profile}</code></button>
-          </div>
-        </div>
-        <div class="thumbnail-panel-actions" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;">
-          <label class="media-upload">
-            Upload image
-            <input type="file" accept="image/*" data-leveling-media-upload="thumbnail">
-          </label>
-          ${layout.thumbnailEnabled
-            ? '<button type="button" class="button tiny ghost danger" data-remove-thumbnail="leveling">Remove</button>'
-            : '<button type="button" class="button tiny ghost" data-enable-thumbnail="leveling">Enable</button>'}
-        </div>
-      </div>`;
-    } else if (scope === 'xpDrop') {
-      const panel = elements.xpDropThumbnailPanel;
-      const xpDrops = state.config?.leveling?.xpDrops;
-      if (!panel || !xpDrops) return;
-      const url = xpDrops.dropThumbnailUrl || '{crate}';
-      const enabled = xpDrops.dropThumbnailEnabled !== false;
-      const gallery = mediaGalleryEditorHtml({
-        urls: xpDrops.dropGalleryUrls, resolveMedia: previewMediaUrl,
-        urlAttrs: (index) => `data-xp-drop-gallery-url="${index}"`,
-        uploadAttrs: (index) => `data-xp-drop-media-upload="gallery" data-media-index="${index}"`,
-        removeAttrs: (index) => `data-remove-xp-drop-gallery="${index}"`,
-        placeholder: '{crate} or https://example.com/image.png',
-      });
-      panel.innerHTML = `<div class="thumbnail-panel-inner">
-        <div class="thumbnail-panel-header">
-          <strong>Drop thumbnail</strong>
-          <button type="button" class="thumbnail-panel-close" data-close-thumbnail="xpDrop" aria-label="Close">&times;</button>
-        </div>
-        <div class="thumbnail-panel-field">
-          <label>
-            <span>Image URL or variable</span>
-            <input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{crate} or https://..." data-xp-drop-thumbnail-url>
-          </label>
-          <div class="variable-quick-pills" style="display:flex;gap:6px;margin-top:6px;">
-            <button type="button" class="button tiny ghost" data-insert-thumb-var="{crate}" data-thumb-scope="xpDrop"><code>{crate}</code></button>
-            <button type="button" class="button tiny ghost" data-insert-thumb-var="{user_profile}" data-thumb-scope="xpDrop"><code>{user_profile}</code></button>
-          </div>
-        </div>
-        <div class="thumbnail-panel-actions" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;">
-          <label class="media-upload">
-            Upload image
-            <input type="file" accept="image/*" data-xp-drop-media-upload="thumbnail">
-          </label>
-          ${enabled
-            ? '<button type="button" class="button tiny ghost danger" data-remove-thumbnail="xpDrop">Remove</button>'
-            : '<button type="button" class="button tiny ghost" data-enable-thumbnail="xpDrop">Enable</button>'}
-        </div>
-        <div class="thumbnail-panel-header media-gallery-panel-head"><strong>Drop gallery</strong></div>${gallery}
-      </div>`;
-    } else if (scope === 'xpClaim') {
-      const panel = elements.xpClaimThumbnailPanel;
-      const xpDrops = state.config?.leveling?.xpDrops;
-      if (!panel || !xpDrops) return;
-      const url = xpDrops.claimThumbnailUrl || '{user_profile}';
-      const enabled = xpDrops.claimThumbnailEnabled === true;
-      const gallery = mediaGalleryEditorHtml({
-        urls: xpDrops.claimGalleryUrls, resolveMedia: previewMediaUrl,
-        urlAttrs: (index) => `data-xp-claim-gallery-url="${index}"`,
-        uploadAttrs: (index) => `data-xp-claim-media-upload="gallery" data-media-index="${index}"`,
-        removeAttrs: (index) => `data-remove-xp-claim-gallery="${index}"`,
-        placeholder: '{crate}, {user_profile}, or image URL',
-      });
-      panel.innerHTML = `<div class="thumbnail-panel-inner">
-        <div class="thumbnail-panel-header">
-          <strong>Claim thumbnail</strong>
-          <button type="button" class="thumbnail-panel-close" data-close-thumbnail="xpClaim" aria-label="Close">&times;</button>
-        </div>
-        <div class="thumbnail-panel-field">
-          <label>
-            <span>Image URL or variable</span>
-            <input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{user_profile} or https://..." data-xp-claim-thumbnail-url>
-          </label>
-          <div class="variable-quick-pills" style="display:flex;gap:6px;margin-top:6px;">
-            <button type="button" class="button tiny ghost" data-insert-thumb-var="{user_profile}" data-thumb-scope="xpClaim"><code>{user_profile}</code></button>
-            <button type="button" class="button tiny ghost" data-insert-thumb-var="{crate}" data-thumb-scope="xpClaim"><code>{crate}</code></button>
-          </div>
-        </div>
-        <div class="thumbnail-panel-actions" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;">
-          <label class="media-upload">
-            Upload image
-            <input type="file" accept="image/*" data-xp-claim-media-upload="thumbnail">
-          </label>
-          ${enabled
-            ? '<button type="button" class="button tiny ghost danger" data-remove-thumbnail="xpClaim">Remove</button>'
-            : '<button type="button" class="button tiny ghost" data-enable-thumbnail="xpClaim">Enable</button>'}
-        </div>
-        <div class="thumbnail-panel-header media-gallery-panel-head"><strong>Claim gallery</strong></div>${gallery}
-      </div>`;
+      if (xpDrops) configure(elements.xpClaimThumbnailControl, xpDrops.claimThumbnailEnabled === true, xpDrops.claimThumbnailUrl || '{user_profile}', 'claim thumbnail');
     }
   }
 
@@ -745,7 +630,7 @@
         const active = Object.prototype.hasOwnProperty.call(multipliers, channel.id);
         const multiplier = active ? multipliers[channel.id] : 1;
         return `<article class="xp-channel-option${active ? ' selected' : ''}">
-          <label class="xp-channel-toggle"><input type="checkbox" data-leveling-channel value="${channel.id}" ${active ? 'checked' : ''}><span><b>#</b><strong>${escapeHtml(channel.name)}</strong></span><i aria-hidden="true">${active ? '&#x2713;' : '+'}</i></label>
+          <label class="xp-channel-toggle" title="${escapeHtml(channel.name)}"><input type="checkbox" data-leveling-channel value="${channel.id}" ${active ? 'checked' : ''} aria-label="${active ? 'Disable' : 'Enable'} XP in ${escapeHtml(channel.name)}"><span><b>#</b><strong>${escapeHtml(channel.name)}</strong></span></label>
           <label class="channel-multiplier" ${active ? '' : 'hidden'}><input type="number" min="0" max="10" step="1" value="${multiplier}" data-leveling-channel-multiplier="${channel.id}" aria-label="${escapeHtml(channel.name)} XP multiplier"><b>&times;</b></label>
         </article>`;
       }).join('');
@@ -757,7 +642,7 @@
           </button>
           <label class="category-bulk-label">
             <input type="checkbox" data-category-bulk="${escapeHtml(cat.id)}" ${allSelected ? 'checked' : ''} ${someSelected ? 'data-indeterminate="true"' : ''}>
-            <span class="category-title">${escapeHtml(cat.name)}</span>
+            <span class="category-title" title="${escapeHtml(cat.name)}">${escapeHtml(cat.name)}</span>
           </label>
           <span class="category-count-badge">${activeCount}/${total}</span>
         </header>
@@ -817,7 +702,7 @@
     const dropThumbHtml = dropThumbEnabled
       ? (dropThumbUrl ? `<img class="discord-thumbnail" src="${escapeHtml(dropThumbUrl)}" alt="${escapeHtml(crate.name)}">` : '<div class="discord-thumbnail placeholder">CRATE</div>')
       : '';
-    const dropGallery = discordGalleryHtml(xpDrops.dropGalleryUrls.map(previewMediaUrl));
+    const dropGallery = mediaGalleryEditorHtml({ urls: xpDrops.dropGalleryUrls, resolveMedia: previewMediaUrl, scope: 'xpDrop' });
     elements.xpDropMessagePreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.dropTemplate, 'dropTemplate', 'xpDrops', 'XP drop message')}</div>${dropThumbHtml}</div>${dropGallery}<div class="discord-separator"></div><button class="xp-drop-fake-claim" type="button" disabled>Claim ${escapeHtml(crate.name)}</button>`;
 
     const claimThumbEnabled = xpDrops.claimThumbnailEnabled === true;
@@ -825,7 +710,7 @@
     const claimThumbHtml = claimThumbEnabled
       ? (claimThumbUrl ? `<img class="discord-thumbnail" src="${escapeHtml(claimThumbUrl)}" alt="Claimed">` : '<div class="discord-thumbnail placeholder">IMG</div>')
       : '';
-    const claimGallery = discordGalleryHtml(xpDrops.claimGalleryUrls.map(previewMediaUrl));
+    const claimGallery = mediaGalleryEditorHtml({ urls: xpDrops.claimGalleryUrls, resolveMedia: previewMediaUrl, scope: 'xpClaim' });
     elements.xpDropClaimPreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.claimTemplate, 'claimTemplate', 'xpDrops', 'XP claim message')}</div>${claimThumbHtml}</div>${claimGallery}`;
 
     updateThumbnailControlUI('xpDrop');
@@ -843,7 +728,7 @@
         <div class="xp-drop-card-layout">
           <div class="crate-media-editor${image ? ' populated' : ' empty'}">
             <button type="button" class="tile-clickable" data-toggle-crate-media aria-expanded="${image ? 'false' : 'true'}" aria-label="${image ? `Change image for ${escapeHtml(crate.name)}` : `Upload image for ${escapeHtml(crate.name)}`}">
-              <img src="${escapeHtml(image || '/images/imageIcon.png')}" alt="">
+              <img src="${escapeHtml(image || MEDIA_ICON_URL)}" alt="">
               <span class="tile-overlay">${image ? 'Change' : 'Upload'}</span>
             </button>
             <div class="crate-media-picker" ${image ? 'hidden' : ''}>
@@ -1336,20 +1221,52 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  function mediaGalleryEditorHtml({ urls, resolveMedia, urlAttrs, uploadAttrs, removeAttrs, placeholder = 'https://example.com/image.png' }) {
-    return `<div class="media-gallery-editor media-count-${Math.min(urls.length, 10)}">${urls.map((rawUrl, index) => {
+  function mediaTarget(scope, containerIndex = -1) {
+    if (scope === 'xpDrop' || scope === 'xpClaim') {
+      const owner = state.config?.leveling?.xpDrops;
+      if (!owner) return null;
+      const stem = scope === 'xpDrop' ? 'drop' : 'claim';
+      return { owner, enabledKey: `${stem}ThumbnailEnabled`, urlKey: `${stem}ThumbnailUrl`, galleryKey: `${stem}GalleryUrls` };
+    }
+    const message = scope === 'leveling' ? state.config?.leveling?.announcements
+      : scope === 'welcome' ? currentMemberMessage()
+      : scope === 'template' ? state.templateDraft
+      : scope === 'reaction' ? state.reactionRoleDraft?.message : null;
+    const owner = containerIndex < 0 ? message?.layout : message?.additionalContainers?.[containerIndex]?.layout;
+    return owner ? { owner, enabledKey: 'thumbnailEnabled', urlKey: 'thumbnailUrl', galleryKey: 'galleryUrls' } : null;
+  }
+
+  function mediaVariables(scope) {
+    if (scope === 'welcome') return ['{user_avatar}', '{server_icon}'];
+    if (['xpDrop', 'xpClaim'].includes(scope)) return ['{crate}', '{user_profile}'];
+    if (['template', 'reaction'].includes(scope)) return ['{server_icon}', '{user_avatar}', '{user_profile}'];
+    return ['{user_profile}'];
+  }
+
+  function validMediaValue(scope, value) {
+    const text = String(value || '').trim().toLowerCase();
+    return !text || validHttpUrl(text) || mediaVariables(scope).includes(text);
+  }
+
+  function renderMediaScope(scope) {
+    if (scope === 'leveling') renderMessagePreview();
+    else if (scope === 'welcome') renderWelcomeMessagePreview();
+    else if (scope === 'template') renderTemplateComposerPreview();
+    else if (scope === 'reaction') renderReactionRoleMessage();
+    else renderXpDropMessagePreviews();
+    refreshDirty();
+  }
+
+  function mediaGalleryEditorHtml({ urls, resolveMedia, scope, containerIndex = -1 }) {
+    return `<div class="discord-gallery editable-gallery media-count-${Math.min(urls.length, MAX_GALLERY_IMAGES)}">${urls.map((rawUrl, index) => {
       const previewUrl = resolveMedia(rawUrl);
       const populated = Boolean(previewUrl);
       return `<article class="media-slot${populated ? ' populated' : ' empty'}">
-        <button type="button" class="media-slot-visual" data-toggle-media-slot aria-expanded="${populated ? 'false' : 'true'}" aria-label="${populated ? `Change image ${index + 1}` : `Choose image ${index + 1}`}">
-          ${populated ? `<img src="${escapeHtml(previewUrl)}" alt="">` : '<img src="/images/imageIcon.png" alt="">'}
+        <button type="button" class="media-slot-visual" data-media-trigger data-media-scope="${scope}" data-media-container="${containerIndex}" data-media-kind="gallery" data-media-index="${index}" aria-expanded="false" aria-label="${populated ? `Change image ${index + 1}` : `Choose image ${index + 1}`}">
+          <img src="${escapeHtml(previewUrl || MEDIA_ICON_URL)}" alt="">
           <span>${populated ? 'Change' : 'Upload or URL'}</span>
         </button>
-        <button type="button" class="media-slot-remove" ${removeAttrs(index)} aria-label="Remove image ${index + 1}">&times;</button>
-        <div class="media-slot-picker" ${populated ? 'hidden' : ''}>
-          <input type="url" maxlength="2000" value="${escapeHtml(rawUrl)}" placeholder="${escapeHtml(placeholder)}" ${urlAttrs(index)} aria-label="Image ${index + 1} URL">
-          <label class="media-upload">Upload<input type="file" accept="image/*" ${uploadAttrs(index)}></label>
-        </div>
+        <button type="button" class="media-slot-remove" data-media-remove data-media-scope="${scope}" data-media-container="${containerIndex}" data-media-kind="gallery" data-media-index="${index}" aria-label="Remove image ${index + 1}">&times;</button>
       </article>`;
     }).join('')}</div>`;
   }
@@ -1361,26 +1278,11 @@
 
   function renderComposerPanel() {
     const panel = state.levelingComposerPanel;
-    const layout = state.config.leveling.announcements.layout;
     elements.levelingComposerPanel.hidden = !panel;
     elements.levelingComposerPanel.dataset.panel = panel;
     elements.levelingVariablesToggle?.classList.toggle('active', panel === 'variables');
-    elements.levelingGalleryAdd?.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validMediaTemplate));
     if (!panel) return;
-    if (panel === 'variables') {
-      elements.levelingComposerPanel.innerHTML = `<div class="variable-guide">${LEVELING_VARIABLES.map(([token, meaning]) => `<button type="button" data-copy-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
-      return;
-    }
-    const pos = layout.galleryPosition || 'bottom';
-    const posToggle = `<div class="gallery-position-toggle" style="margin-bottom:10px;display:flex;align-items:center;gap:8px;"><span style="font-size:11px;color:var(--muted,#99a1a6);">Position:</span><button type="button" class="button tiny ${pos === 'top' ? 'primary' : 'ghost'}" data-leveling-gallery-pos="top">Above message</button><button type="button" class="button tiny ${pos !== 'top' ? 'primary' : 'ghost'}" data-leveling-gallery-pos="bottom">Below message</button></div>`;
-    const gallery = mediaGalleryEditorHtml({
-      urls: layout.galleryUrls, resolveMedia: previewMediaUrl,
-      urlAttrs: (index) => `data-leveling-gallery-url="${index}"`,
-      uploadAttrs: (index) => `data-leveling-media-upload="gallery" data-media-index="${index}"`,
-      removeAttrs: (index) => `data-remove-gallery="${index}"`,
-      placeholder: '{user_profile} or https://example.com/image.png',
-    });
-    elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images in display order.</small></div><button type="button" data-add-gallery-url>Add Images</button></div>${posToggle}${gallery}`;
+    elements.levelingComposerPanel.innerHTML = `<div class="variable-guide">${LEVELING_VARIABLES.map(([token, meaning]) => `<button type="button" data-copy-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
   }
 
   function readMediaFile(file) {
@@ -1392,47 +1294,151 @@
     });
   }
 
-  async function uploadLevelingMedia(input) {
-    const file = input.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      input.value = '';
-      return showToast('Upload an image file.', 'error');
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      input.value = '';
-      return showToast('Images must be 10 MB or smaller.', 'error');
-    }
-    const label = input.closest('.media-upload');
-    label?.classList.add('uploading');
-    try {
-      const dataUrl = await readMediaFile(file);
-      const result = await api(`/api/guilds/${state.guildId}/leveling-media`, {
-        method: 'POST',
-        body: JSON.stringify({ dataUrl }),
-      });
-      const containerIndex = Number(input.dataset.additionalContainerIndex);
-      const layout = Number.isInteger(containerIndex)
-        ? state.config.leveling.announcements.additionalContainers[containerIndex]?.layout
-        : state.config.leveling.announcements.layout;
-      if (!layout) throw new Error('That container no longer exists.');
-      if (input.dataset.levelingMediaUpload === 'thumbnail') {
-        layout.thumbnailUrl = result.url;
-        layout.thumbnailEnabled = true;
-      } else {
-        const index = Number(input.dataset.mediaIndex);
-        if (Number.isInteger(index) && index >= 0 && index < layout.galleryUrls.length) layout.galleryUrls[index] = result.url;
-        else if (layout.galleryUrls.length < 10) layout.galleryUrls.push(result.url);
+  function mediaTriggerSelector(scope, containerIndex, kind, mediaIndex = -1) {
+    return `[data-media-trigger][data-media-scope="${scope}"][data-media-container="${containerIndex}"][data-media-kind="${kind}"]${kind === 'gallery' ? `[data-media-index="${mediaIndex}"]` : ''}`;
+  }
+
+  function closeMediaPopover({ restoreFocus = true } = {}) {
+    const active = state.mediaPopover;
+    if (!active) return;
+    state.mediaPopover = null;
+    active.trigger?.setAttribute('aria-expanded', 'false');
+    active.element.remove();
+    if (restoreFocus) document.querySelector(active.selector)?.focus();
+  }
+
+  function positionMediaPopover() {
+    const active = state.mediaPopover;
+    if (!active?.trigger?.isConnected || !active.element?.isConnected) return closeMediaPopover({ restoreFocus: false });
+    const margin = 8;
+    const gap = 6;
+    const triggerRect = active.trigger.getBoundingClientRect();
+    const width = Math.min(360, window.innerWidth - margin * 2);
+    active.element.style.width = `${width}px`;
+    const height = active.element.offsetHeight;
+    const below = triggerRect.bottom + gap;
+    const top = below + height <= window.innerHeight - margin
+      ? below
+      : Math.max(margin, triggerRect.top - height - gap);
+    const left = Math.max(margin, Math.min(triggerRect.left, window.innerWidth - width - margin));
+    active.element.style.top = `${Math.min(top, Math.max(margin, window.innerHeight - height - margin))}px`;
+    active.element.style.left = `${left}px`;
+  }
+
+  function setMediaValue(target, kind, mediaIndex, value) {
+    if (kind === 'thumbnail') {
+      target.owner[target.urlKey] = value;
+      target.owner[target.enabledKey] = Boolean(value);
+    } else target.owner[target.galleryKey][mediaIndex] = value;
+  }
+
+  async function uploadMediaValue(active, file) {
+    if (!file?.type?.startsWith('image/')) throw new Error('Upload an image file.');
+    if (file.size > 10 * 1024 * 1024) throw new Error('Images must be 10 MB or smaller.');
+    const endpoint = ['leveling', 'xpDrop', 'xpClaim'].includes(active.scope) ? 'leveling-media' : 'message-media';
+    const result = await api(`/api/guilds/${active.guildId}/${endpoint}`, {
+      method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }),
+    });
+    return result.url;
+  }
+
+  function openMediaPopover(trigger) {
+    const scope = trigger.dataset.mediaScope;
+    const containerIndex = Number(trigger.dataset.mediaContainer || -1);
+    const kind = trigger.dataset.mediaKind;
+    const mediaIndex = Number(trigger.dataset.mediaIndex || -1);
+    const target = mediaTarget(scope, containerIndex);
+    if (!target) return;
+    closeMediaPopover({ restoreFocus: false });
+    const source = kind === 'thumbnail' ? target.owner[target.urlKey] : target.owner[target.galleryKey]?.[mediaIndex];
+    const variables = mediaVariables(scope);
+    const popover = document.createElement('section');
+    popover.className = 'media-popover';
+    popover.setAttribute('role', 'dialog');
+    popover.setAttribute('aria-label', kind === 'thumbnail' ? 'Choose thumbnail image' : `Choose gallery image ${mediaIndex + 1}`);
+    popover.innerHTML = `<label><span>Image URL${variables.length ? ' or variable' : ''}</span><input type="text" maxlength="2000" value="${escapeHtml(source || '')}" placeholder="https://example.com/image.png" data-media-url></label>
+      ${variables.length ? `<small>${variables.map(escapeHtml).join(' · ')}</small>` : ''}
+      <div class="media-popover-actions"><label class="media-upload">Upload image<input type="file" accept="image/*" data-media-upload></label>${kind === 'thumbnail' && target.owner[target.enabledKey] ? '<button type="button" class="button tiny danger" data-media-clear>Remove</button>' : ''}<button type="button" class="button tiny primary" data-media-apply>Use image</button></div>
+      <p class="media-popover-error" role="alert"></p>`;
+    document.body.append(popover);
+    const active = {
+      element: popover, trigger, target, scope, containerIndex, kind, mediaIndex,
+      guildId: state.guildId,
+      selector: mediaTriggerSelector(scope, containerIndex, kind, mediaIndex),
+    };
+    state.mediaPopover = active;
+    trigger.setAttribute('aria-expanded', 'true');
+    const input = popover.querySelector('[data-media-url]');
+    const error = popover.querySelector('[role="alert"]');
+    const commit = (value) => {
+      const current = mediaTarget(scope, containerIndex);
+      if (state.guildId !== active.guildId || current?.owner !== target.owner) {
+        error.textContent = 'This editor changed. Close the picker and try again.';
+        return;
       }
-      renderMessagePreview();
-      refreshDirty();
-      showToast('Image uploaded. Apply changes when you are ready.');
-    } catch (error) {
-      showToast(error.message || 'Image upload failed.', 'error');
-    } finally {
-      label?.classList.remove('uploading');
-      input.value = '';
-    }
+      const normalized = String(value || '').trim();
+      if (!validMediaValue(scope, normalized)) {
+        error.textContent = 'Enter an HTTP/HTTPS image URL or one of the listed variables.';
+        input.focus();
+        return;
+      }
+      setMediaValue(target, kind, mediaIndex, normalized);
+      closeMediaPopover({ restoreFocus: false });
+      renderMediaScope(scope);
+      document.querySelector(active.selector)?.focus();
+    };
+    popover.querySelector('[data-media-apply]').addEventListener('click', () => commit(input.value));
+    popover.querySelector('[data-media-clear]')?.addEventListener('click', () => commit(''));
+    popover.querySelector('[data-media-upload]').addEventListener('change', async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      popover.classList.add('uploading');
+      error.textContent = 'Uploading image…';
+      try { commit(await uploadMediaValue(active, file)); }
+      catch (failure) { error.textContent = failure.message || 'Image upload failed. Try again.'; }
+      finally { popover.classList.remove('uploading'); }
+    });
+    requestAnimationFrame(() => { positionMediaPopover(); input.focus(); input.select(); });
+  }
+
+  function addGalleryTile(scope, containerIndex = -1) {
+    const target = mediaTarget(scope, containerIndex);
+    const gallery = target?.owner?.[target.galleryKey];
+    if (!gallery) return;
+    if (gallery.length >= MAX_GALLERY_IMAGES) return showToast('A Discord gallery supports up to 10 images.', 'error');
+    gallery.push('');
+    const mediaIndex = gallery.length - 1;
+    renderMediaScope(scope);
+    document.querySelector(mediaTriggerSelector(scope, containerIndex, 'gallery', mediaIndex))?.focus();
+  }
+
+  function removeMedia(trigger) {
+    const scope = trigger.dataset.mediaScope;
+    const containerIndex = Number(trigger.dataset.mediaContainer || -1);
+    const target = mediaTarget(scope, containerIndex);
+    if (!target) return;
+    if (trigger.dataset.mediaKind === 'thumbnail') {
+      target.owner[target.enabledKey] = false;
+      target.owner[target.urlKey] = '';
+    } else target.owner[target.galleryKey].splice(Number(trigger.dataset.mediaIndex), 1);
+    closeMediaPopover({ restoreFocus: false });
+    renderMediaScope(scope);
+  }
+
+  function cleanLayoutMedia(layout) {
+    if (!layout) return;
+    layout.galleryPosition = 'bottom';
+    layout.galleryUrls = [...new Set((layout.galleryUrls || [])
+      .map((value) => String(value || '').trim()).filter(Boolean))].slice(0, MAX_GALLERY_IMAGES);
+    layout.thumbnailUrl = String(layout.thumbnailUrl || '').trim();
+    layout.thumbnailEnabled = Boolean(layout.thumbnailEnabled && layout.thumbnailUrl);
+  }
+
+  function cleanMessageMedia(message) {
+    if (!message) return message;
+    cleanLayoutMedia(message.layout);
+    for (const container of message.additionalContainers || []) cleanLayoutMedia(container.layout);
+    return message;
   }
 
   async function uploadXpDropMedia(input) {
@@ -1452,37 +1458,11 @@
       const result = await api(`/api/guilds/${state.guildId}/leveling-media`, {
         method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }),
       });
-      if (input.dataset.xpDropMediaUpload === 'thumbnail') {
-        state.config.leveling.xpDrops.dropThumbnailUrl = result.url;
-        state.config.leveling.xpDrops.dropThumbnailEnabled = true;
-        renderXpDropMessagePreviews();
-        renderThumbnailPanel('xpDrop');
-        updateThumbnailControlUI('xpDrop');
-      } else if (input.dataset.xpDropMediaUpload === 'gallery') {
-        const gallery = state.config.leveling.xpDrops.dropGalleryUrls;
-        const index = Number(input.dataset.mediaIndex);
-        if (Number.isInteger(index) && index >= 0 && index < gallery.length) gallery[index] = result.url;
-        else if (gallery.length < 10) gallery.push(result.url);
-        renderXpDropMessagePreviews(); renderThumbnailPanel('xpDrop');
-      } else if (input.dataset.xpClaimMediaUpload === 'thumbnail') {
-        state.config.leveling.xpDrops.claimThumbnailUrl = result.url;
-        state.config.leveling.xpDrops.claimThumbnailEnabled = true;
-        renderXpDropMessagePreviews();
-        renderThumbnailPanel('xpClaim');
-        updateThumbnailControlUI('xpClaim');
-      } else if (input.dataset.xpClaimMediaUpload === 'gallery') {
-        const gallery = state.config.leveling.xpDrops.claimGalleryUrls;
-        const index = Number(input.dataset.mediaIndex);
-        if (Number.isInteger(index) && index >= 0 && index < gallery.length) gallery[index] = result.url;
-        else if (gallery.length < 10) gallery.push(result.url);
-        renderXpDropMessagePreviews(); renderThumbnailPanel('xpClaim');
-      } else {
-        const index = Number(input.dataset.xpDropMedia);
-        const crate = state.config?.leveling?.xpDrops?.crates?.[index];
-        if (!crate) throw new Error('That crate no longer exists.');
-        crate.imageUrl = result.url;
-        renderXpDrops();
-      }
+      const index = Number(input.dataset.xpDropMedia);
+      const crate = state.config?.leveling?.xpDrops?.crates?.[index];
+      if (!crate) throw new Error('That crate no longer exists.');
+      crate.imageUrl = result.url;
+      renderXpDrops();
       refreshDirty();
       showToast('Image uploaded. Apply changes when you are ready.');
     } catch (error) {
@@ -1498,30 +1478,25 @@
     renderComposerPanel();
   }
 
-  function thumbnailTileHtml({ layout, resolvedUrl, label = 'Thumbnail', urlAttrs, uploadAttrs, removeKey }) {
+  function thumbnailTileHtml({ layout, resolvedUrl, label = 'Thumbnail', scope, containerIndex = -1 }) {
     const populated = layout.thumbnailEnabled && Boolean(resolvedUrl);
     return `<div class="composer-thumbnail-editor${populated ? ' populated' : ' empty'}">
-      <button type="button" class="composer-thumbnail-tile" data-toggle-thumbnail-tile aria-expanded="false" aria-label="${populated ? `Change ${label}` : `Upload ${label}`}">
-        <img src="${escapeHtml(populated ? resolvedUrl : '/images/imageIcon.png')}" alt="">
+      <button type="button" class="composer-thumbnail-tile" data-media-trigger data-media-scope="${scope}" data-media-container="${containerIndex}" data-media-kind="thumbnail" aria-expanded="false" aria-label="${populated ? `Change ${label}` : `Upload ${label}`}">
+        <img src="${escapeHtml(populated ? resolvedUrl : MEDIA_ICON_URL)}" alt="">
         <span>${populated ? 'Change' : 'Upload'}</span>
       </button>
-      ${layout.thumbnailEnabled ? `<button type="button" class="media-slot-remove thumbnail-remove" data-shared-thumbnail-remove="${escapeHtml(removeKey)}" aria-label="Remove ${escapeHtml(label)}">&times;</button>` : ''}
-      <div class="thumbnail-inline-picker" hidden>
-        <input type="url" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl || '')}" placeholder="Image URL" ${urlAttrs} aria-label="${escapeHtml(label)} URL">
-        <label class="media-upload">Upload<input type="file" accept="image/*" ${uploadAttrs}></label>
-      </div>
+      ${layout.thumbnailEnabled ? `<button type="button" class="media-slot-remove thumbnail-remove" data-media-remove data-media-scope="${scope}" data-media-container="${containerIndex}" data-media-kind="thumbnail" aria-label="Remove ${escapeHtml(label)}">&times;</button>` : ''}
     </div>`;
   }
 
-  function renderDiscordComposerPreview({ frame, preview, accentButton, accentInput, containerButton, layout, contentHtml, resolveMedia, thumbnailEditor }) {
+  function renderDiscordComposerPreview({ frame, preview, accentButton, accentInput, containerButton, layout, contentHtml, resolveMedia, mediaScope, thumbnailEditor }) {
     const thumbnailUrl = layout.thumbnailEnabled ? resolveMedia(layout.thumbnailUrl) : '';
     const thumbnail = thumbnailEditor
-      ? thumbnailTileHtml({ layout, resolvedUrl: thumbnailUrl, ...thumbnailEditor })
+      ? thumbnailTileHtml({ layout, resolvedUrl: thumbnailUrl, scope: mediaScope, ...thumbnailEditor })
       : layout.thumbnailEnabled
         ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="">` : '<div class="discord-thumbnail placeholder">IMG</div>'
         : '';
-    const gallery = (layout.galleryUrls || []).map(resolveMedia).filter(Boolean);
-    const galleryHtml = discordGalleryHtml(gallery);
+    const galleryHtml = mediaGalleryEditorHtml({ urls: layout.galleryUrls || [], resolveMedia, scope: mediaScope });
     frame.classList.toggle('has-container', layout.container);
     frame.classList.toggle('no-container', !layout.container);
     frame.style.setProperty('--accent-color', layout.accentColor);
@@ -1529,9 +1504,7 @@
     accentInput.value = layout.accentColor;
     containerButton.classList.toggle('active', layout.container);
     containerButton.textContent = layout.container ? 'Container on' : 'Container off';
-    preview.innerHTML = layout.galleryPosition === 'top'
-      ? `${galleryHtml}<div class="discord-section"><div>${contentHtml}</div>${thumbnail}</div>`
-      : `<div class="discord-section"><div>${contentHtml}</div>${thumbnail}</div>${galleryHtml}`;
+    preview.innerHTML = `<div class="discord-section"><div>${contentHtml}</div>${thumbnail}</div>${galleryHtml}`;
   }
 
   function renderAdditionalContainerEditors({ root, containers, prefix, scope, previewValues, resolveMedia, maxLength }) {
@@ -1540,23 +1513,13 @@
       const thumbnailUrl = layout.thumbnailEnabled ? resolveMedia(layout.thumbnailUrl) : '';
       const thumbnail = thumbnailTileHtml({
         layout, resolvedUrl: thumbnailUrl, label: `Container ${containerIndex + 2} thumbnail`,
-        urlAttrs: `data-${prefix}-additional-thumbnail-url="${containerIndex}"`,
-        uploadAttrs: `data-${prefix}-media-upload="thumbnail" data-additional-container-index="${containerIndex}"`,
-        removeKey: `${prefix}:${containerIndex}`,
+        scope: prefix, containerIndex,
       });
-      const gallery = layout.galleryUrls.map(resolveMedia).filter(Boolean);
-      const galleryPreview = discordGalleryHtml(gallery);
-      const galleryEditor = mediaGalleryEditorHtml({
-        urls: layout.galleryUrls, resolveMedia,
-        urlAttrs: (mediaIndex) => `data-${prefix}-additional-gallery-url="${containerIndex}:${mediaIndex}"`,
-        uploadAttrs: (mediaIndex) => `data-${prefix}-media-upload="gallery" data-additional-container-index="${containerIndex}" data-media-index="${mediaIndex}"`,
-        removeAttrs: (mediaIndex) => `data-remove-${prefix}-additional-gallery="${containerIndex}:${mediaIndex}"`,
-      });
+      const galleryEditor = mediaGalleryEditorHtml({ urls: layout.galleryUrls, resolveMedia, scope: prefix, containerIndex });
       const content = inlineTemplateEditor(container.content, 'content', scope, `container ${containerIndex + 2} message`, previewValues, maxLength, containerIndex);
       return `<section class="additional-container-card" style="--accent-color:${escapeHtml(layout.accentColor)}" data-additional-container-card="${containerIndex}">
-        <header><strong>Container ${containerIndex + 2}</strong><div><label class="additional-container-color" title="Container color"><span>Accent</span><input type="color" value="${escapeHtml(layout.accentColor)}" data-${prefix}-additional-accent="${containerIndex}" aria-label="Container ${containerIndex + 2} color"></label><button type="button" data-remove-${prefix}-additional-container="${containerIndex}">Remove</button></div></header>
-        ${layout.galleryPosition === 'top' ? galleryPreview : ''}<div class="discord-section"><div>${content}</div>${thumbnail}</div>${layout.galleryPosition !== 'top' ? galleryPreview : ''}
-        <div class="additional-container-media"><div class="additional-gallery-head"><strong>Images</strong><button type="button" data-add-${prefix}-additional-gallery="${containerIndex}">Add Images</button></div>${galleryEditor}</div>
+        <header><strong>Container ${containerIndex + 2}</strong><div><label class="additional-container-color" title="Container color"><span>Accent</span><input type="color" value="${escapeHtml(layout.accentColor)}" data-${prefix}-additional-accent="${containerIndex}" aria-label="Container ${containerIndex + 2} color"></label><button type="button" data-media-add="${prefix}" data-media-container="${containerIndex}" ${layout.galleryUrls.length >= MAX_GALLERY_IMAGES ? 'disabled' : ''}>Add Images</button><button type="button" data-remove-${prefix}-additional-container="${containerIndex}">Remove</button></div></header>
+        <div class="discord-section"><div>${content}</div>${thumbnail}</div>${galleryEditor}
       </section>`;
     }).join('');
   }
@@ -1568,7 +1531,7 @@
     renderDiscordComposerPreview({
       frame: elements.levelingDiscordFrame, preview: elements.levelingMessagePreview,
       accentButton: elements.levelingAccentButton, accentInput: elements.levelingAccentColor,
-      containerButton: elements.levelingContainerAdd, layout, contentHtml: text, resolveMedia: previewMediaUrl,
+      containerButton: elements.levelingContainerAdd, layout, contentHtml: text, resolveMedia: previewMediaUrl, mediaScope: 'leveling',
     });
     renderAdditionalContainerEditors({
       root: elements.levelingAdditionalContainers,
@@ -1620,25 +1583,12 @@
     const panel = state.memberMessageComposerPanel;
     const event = currentMemberMessage();
     if (!event) return;
-    const layout = event.layout;
     elements.welcomeComposerPanel.hidden = !panel;
     elements.welcomeComposerPanel.dataset.panel = panel;
     elements.welcomeVariablesToggle.classList.toggle('active', panel === 'variables');
-    elements.welcomeGalleryAdd.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validMemberMediaTemplate));
     if (!panel) return;
-    if (panel === 'variables') {
-      const variables = [...MEMBER_MESSAGE_COMMON_VARIABLES, ...MEMBER_MESSAGE_EVENT_VARIABLES[state.memberMessageEvent]];
-      elements.welcomeComposerPanel.innerHTML = `<div class="variable-guide">${variables.map(([token, meaning]) => `<button type="button" data-insert-member-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
-      return;
-    }
-    const gallery = mediaGalleryEditorHtml({
-      urls: layout.galleryUrls, resolveMedia: memberMessagePreviewMediaUrl,
-      urlAttrs: (index) => `data-welcome-gallery-url="${index}"`,
-      uploadAttrs: (index) => `data-welcome-media-upload="gallery" data-media-index="${index}"`,
-      removeAttrs: (index) => `data-remove-welcome-gallery="${index}"`,
-      placeholder: '{server_icon} or https://example.com/image.png',
-    });
-    elements.welcomeComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images in display order.</small></div><button type="button" data-add-welcome-gallery-url>Add Images</button></div>${gallery}`;
+    const variables = [...MEMBER_MESSAGE_COMMON_VARIABLES, ...MEMBER_MESSAGE_EVENT_VARIABLES[state.memberMessageEvent]];
+    elements.welcomeComposerPanel.innerHTML = `<div class="variable-guide">${variables.map(([token, meaning]) => `<button type="button" data-insert-member-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
   }
 
   function renderWelcomeMessagePreview(renderTools = true) {
@@ -1651,10 +1601,9 @@
       frame: elements.welcomeDiscordFrame, preview: elements.welcomeMessagePreview,
       accentButton: elements.welcomeAccentButton, accentInput: elements.welcomeAccentColor,
       containerButton: elements.welcomeContainerAdd, layout, contentHtml: text,
-      resolveMedia: (url) => memberMessagePreviewMediaUrl(url),
+      resolveMedia: (url) => memberMessagePreviewMediaUrl(url), mediaScope: 'welcome',
       thumbnailEditor: {
-        urlAttrs: 'data-welcome-thumbnail-url', uploadAttrs: 'data-welcome-media-upload="thumbnail"',
-        removeKey: 'welcome:main', label: `${state.memberMessageEvent} message thumbnail`,
+        label: `${state.memberMessageEvent} message thumbnail`,
       },
     });
     renderAdditionalContainerEditors({
@@ -1715,46 +1664,6 @@
     input.focus();
     input.setSelectionRange(Math.min(input.value.length, start + token.length), Math.min(input.value.length, start + token.length));
     refreshDirty();
-  }
-
-  async function uploadWelcomeMedia(input) {
-    const file = input.files?.[0];
-    const event = currentMemberMessage();
-    if (!file || !event) return;
-    if (!file.type.startsWith('image/')) {
-      input.value = '';
-      return showToast('Upload an image file.', 'error');
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      input.value = '';
-      return showToast('Images must be 10 MB or smaller.', 'error');
-    }
-    const label = input.closest('.media-upload');
-    label?.classList.add('uploading');
-    try {
-      const result = await api(`/api/guilds/${state.guildId}/message-media`, {
-        method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }),
-      });
-      const containerIndex = Number(input.dataset.additionalContainerIndex);
-      const layout = Number.isInteger(containerIndex) ? event.additionalContainers[containerIndex]?.layout : event.layout;
-      if (!layout) throw new Error('That container no longer exists.');
-      if (input.dataset.welcomeMediaUpload === 'thumbnail') {
-        layout.thumbnailUrl = result.url;
-        layout.thumbnailEnabled = true;
-      } else {
-        const index = Number(input.dataset.mediaIndex);
-        if (Number.isInteger(index) && index >= 0 && index < layout.galleryUrls.length) layout.galleryUrls[index] = result.url;
-        else if (layout.galleryUrls.length < 10) layout.galleryUrls.push(result.url);
-      }
-      renderWelcomeMessagePreview();
-      refreshDirty();
-      showToast('Image uploaded. Apply changes when you are ready.');
-    } catch (error) {
-      showToast(error.message || 'Image upload failed.', 'error');
-    } finally {
-      label?.classList.remove('uploading');
-      input.value = '';
-    }
   }
 
   const TEMPLATE_LAYOUT_DEFAULTS = Object.freeze({
@@ -1963,22 +1872,10 @@
     const draft = state.reactionRoleDraft;
     if (!draft) return;
     const panel = state.reactionRoleComposerPanel;
-    const layout = draft.message.layout;
     elements.reactionRoleComposerPanel.hidden = !panel;
     elements.reactionRoleVariablesToggle.classList.toggle('active', panel === 'variables');
-    elements.reactionRoleGalleryToggle.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validTemplateMedia));
     if (!panel) return;
-    if (panel === 'variables') {
-      elements.reactionRoleComposerPanel.innerHTML = `<div class="variable-guide">${GENERIC_TEMPLATE_VARIABLES.map(([token, meaning]) => `<button type="button" data-insert-reaction-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
-      return;
-    }
-    const gallery = mediaGalleryEditorHtml({
-      urls: layout.galleryUrls, resolveMedia: templatePreviewMediaUrl,
-      urlAttrs: (index) => `data-reaction-gallery-url="${index}"`,
-      uploadAttrs: (index) => `data-reaction-media-upload="gallery" data-media-index="${index}"`,
-      removeAttrs: (index) => `data-remove-reaction-gallery="${index}"`,
-    });
-    elements.reactionRoleComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images in display order.</small></div><button type="button" data-add-reaction-gallery>Add Images</button></div>${gallery}`;
+    elements.reactionRoleComposerPanel.innerHTML = `<div class="variable-guide">${GENERIC_TEMPLATE_VARIABLES.map(([token, meaning]) => `<button type="button" data-insert-reaction-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
   }
 
   function renderReactionRoleMessage() {
@@ -1989,10 +1886,9 @@
       frame: elements.reactionRoleDiscordFrame, preview: elements.reactionRoleMessagePreview,
       accentButton: elements.reactionRoleAccentButton, accentInput: elements.reactionRoleAccentColor,
       containerButton: elements.reactionRoleContainerToggle, layout: draft.message.layout,
-      contentHtml: content, resolveMedia: templatePreviewMediaUrl,
+      contentHtml: content, resolveMedia: templatePreviewMediaUrl, mediaScope: 'reaction',
       thumbnailEditor: {
-        urlAttrs: 'data-reaction-thumbnail-url', uploadAttrs: 'data-reaction-media-upload="thumbnail"',
-        removeKey: 'reaction:main', label: 'Reaction Role thumbnail',
+        label: 'Reaction Role thumbnail',
       },
     });
     renderAdditionalContainerEditors({
@@ -2097,8 +1993,9 @@
 
   function reactionRoleUpdateBody() {
     const draft = state.reactionRoleDraft;
+    const message = cleanMessageMedia(clone(draft.message));
     return {
-      name: draft.name, enabled: draft.enabled, message: draft.message,
+      name: draft.name, enabled: draft.enabled, message,
       interactionType: draft.interactionType, buttons: draft.buttons,
       dropdown: draft.dropdown, channelId: draft.channelId, publishedMessageId: draft.publishedMessageId,
     };
@@ -2888,23 +2785,11 @@
     const panel = state.templateComposerPanel;
     const draft = state.templateDraft;
     if (!draft) return;
-    const layout = draft.layout;
     elements.templateComposerPanel.hidden = !panel;
     elements.templateComposerPanel.dataset.panel = panel;
     elements.templateVariablesToggle.classList.toggle('active', panel === 'variables');
-    elements.templateGalleryAdd.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validTemplateMedia));
     if (!panel) return;
-    if (panel === 'variables') {
-      elements.templateComposerPanel.innerHTML = `<div class="variable-guide">${GENERIC_TEMPLATE_VARIABLES.map(([token, meaning]) => `<button type="button" data-insert-template-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
-      return;
-    }
-    const gallery = mediaGalleryEditorHtml({
-      urls: layout.galleryUrls, resolveMedia: templatePreviewMediaUrl,
-      urlAttrs: (index) => `data-template-gallery-url="${index}"`,
-      uploadAttrs: (index) => `data-template-media-upload="gallery" data-media-index="${index}"`,
-      removeAttrs: (index) => `data-remove-template-gallery="${index}"`,
-    });
-    elements.templateComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images in display order.</small></div><button type="button" data-add-template-gallery>Add Images</button></div>${gallery}`;
+    elements.templateComposerPanel.innerHTML = `<div class="variable-guide">${GENERIC_TEMPLATE_VARIABLES.map(([token, meaning]) => `<button type="button" data-insert-template-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
   }
 
   function renderTemplateComposerPreview(renderTools = true, updateJson = true) {
@@ -2914,10 +2799,9 @@
     renderDiscordComposerPreview({
       frame: elements.templateDiscordFrame, preview: elements.templateMessagePreview,
       accentButton: elements.templateAccentButton, accentInput: elements.templateAccentColor,
-      containerButton: elements.templateContainerAdd, layout: draft.layout, contentHtml, resolveMedia: templatePreviewMediaUrl,
+      containerButton: elements.templateContainerAdd, layout: draft.layout, contentHtml, resolveMedia: templatePreviewMediaUrl, mediaScope: 'template',
       thumbnailEditor: {
-        urlAttrs: 'data-template-thumbnail-url', uploadAttrs: 'data-template-media-upload="thumbnail"',
-        removeKey: 'template:main', label: 'Message template thumbnail',
+        label: 'Message template thumbnail',
       },
     });
     renderAdditionalContainerEditors({
@@ -3147,33 +3031,6 @@
     refreshTemplateDirty();
   }
 
-  async function uploadTemplateMedia(input) {
-    const file = input.files?.[0];
-    if (!file || !state.templateDraft) return;
-    if (!file.type.startsWith('image/') || file.size > 10 * 1024 * 1024) {
-      input.value = '';
-      return showToast(file.size > 10 * 1024 * 1024 ? 'Images must be 10 MB or smaller.' : 'Upload an image file.', 'error');
-    }
-    const label = input.closest('.media-upload');
-    label?.classList.add('uploading');
-    try {
-      const result = await api(`/api/guilds/${state.guildId}/message-media`, { method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }) });
-      const containerIndex = Number(input.dataset.additionalContainerIndex);
-      const layout = Number.isInteger(containerIndex) ? state.templateDraft.additionalContainers[containerIndex]?.layout : state.templateDraft.layout;
-      if (!layout) throw new Error('That container no longer exists.');
-      if (input.dataset.templateMediaUpload === 'thumbnail') {
-        layout.thumbnailUrl = result.url; layout.thumbnailEnabled = true;
-      } else {
-        const index = Number(input.dataset.mediaIndex);
-        if (Number.isInteger(index) && index >= 0 && index < layout.galleryUrls.length) layout.galleryUrls[index] = result.url;
-        else if (layout.galleryUrls.length < 10) layout.galleryUrls.push(result.url);
-      }
-      renderTemplateComposerPreview();
-      showToast('Template image uploaded. Save the template when ready.');
-    } catch (error) { showToast(error.message || 'Image upload failed.', 'error'); }
-    finally { label?.classList.remove('uploading'); input.value = ''; }
-  }
-
   async function sendCurrentTemplate(mode) {
     if (!state.templateDraft || templateIsDirty()) return showToast('Save template changes before sending.', 'error');
     const channelId = elements.templateSendChannel.value || state.templateDraft.defaultChannelId;
@@ -3249,33 +3106,6 @@
       const container = draft.additionalContainers[Number(target.dataset.templateAdditionalAccent)];
       if (container) container.layout.accentColor = target.value;
       renderTemplateComposerPreview();
-      return;
-    }
-    if (target.matches('[data-template-thumbnail-url]')) {
-      draft.layout.thumbnailUrl = target.value.slice(0, 2000);
-      draft.layout.thumbnailEnabled = Boolean(target.value.trim());
-      renderTemplateComposerPreview(false);
-      return;
-    }
-    if (target.matches('[data-template-gallery-url]')) {
-      draft.layout.galleryUrls[Number(target.dataset.templateGalleryUrl)] = target.value.slice(0, 2000);
-      renderTemplateComposerPreview(false);
-      return;
-    }
-    if (target.matches('[data-template-additional-thumbnail-url]')) {
-      const container = draft.additionalContainers[Number(target.dataset.templateAdditionalThumbnailUrl)];
-      if (container) {
-        container.layout.thumbnailUrl = target.value.slice(0, 2000);
-        container.layout.thumbnailEnabled = validTemplateMedia(target.value);
-      }
-      renderTemplateComposerPreview(false);
-      return;
-    }
-    if (target.matches('[data-template-additional-gallery-url]')) {
-      const [containerIndex, mediaIndex] = target.dataset.templateAdditionalGalleryUrl.split(':').map(Number);
-      const container = draft.additionalContainers[containerIndex];
-      if (container) container.layout.galleryUrls[mediaIndex] = target.value.slice(0, 2000);
-      renderTemplateComposerPreview(false);
       return;
     }
     if (target.matches('[data-template-button-label]')) {
@@ -3714,6 +3544,12 @@
       const memberMessages = clone(state.config.memberMessages);
       const counting = clone(state.config.counting);
       const games = clone(state.config.games);
+      cleanMessageMedia(leveling.announcements);
+      leveling.xpDrops.dropGalleryUrls = [...new Set(leveling.xpDrops.dropGalleryUrls.map((value) => String(value || '').trim()).filter(Boolean))].slice(0, MAX_GALLERY_IMAGES);
+      leveling.xpDrops.claimGalleryUrls = [...new Set(leveling.xpDrops.claimGalleryUrls.map((value) => String(value || '').trim()).filter(Boolean))].slice(0, MAX_GALLERY_IMAGES);
+      for (const event of Object.values(memberMessages)) {
+        if (event && typeof event === 'object' && 'layout' in event) cleanMessageMedia(event);
+      }
       const body = { memberMessages, counting, games };
       if (state.config.features?.leveling === true) body.leveling = leveling;
       const payload = await api(`/api/guilds/${state.guildId}/config`, {
@@ -3979,35 +3815,6 @@
     if (target.name === 'roleBoostMode') {
       leveling.roleBoostMode = target.value === 'stackable' ? 'stackable' : 'highest';
     }
-    if (target.matches('[data-leveling-gallery-pos]')) {
-      leveling.announcements.layout.galleryPosition = target.dataset.levelingGalleryPos;
-      renderMessagePreview();
-      renderComposerPanel();
-    }
-    if (target.matches('[data-leveling-thumbnail-url]')) {
-      leveling.announcements.layout.thumbnailUrl = target.value.slice(0, 2000);
-      leveling.announcements.layout.thumbnailEnabled = validMediaTemplate(target.value);
-      renderMessagePreview(false);
-      updateThumbnailControlUI('leveling');
-    }
-    if (target.matches('[data-xp-drop-thumbnail-url]')) {
-      leveling.xpDrops.dropThumbnailUrl = target.value.slice(0, 2000);
-      leveling.xpDrops.dropThumbnailEnabled = Boolean(target.value.trim());
-      renderXpDropMessagePreviews();
-    }
-    if (target.matches('[data-xp-claim-thumbnail-url]')) {
-      leveling.xpDrops.claimThumbnailUrl = target.value.slice(0, 2000);
-      leveling.xpDrops.claimThumbnailEnabled = Boolean(target.value.trim());
-      renderXpDropMessagePreviews();
-    }
-    if (target.matches('[data-xp-drop-gallery-url]')) {
-      leveling.xpDrops.dropGalleryUrls[Number(target.dataset.xpDropGalleryUrl)] = target.value.slice(0, 2000);
-      renderXpDropMessagePreviews();
-    }
-    if (target.matches('[data-xp-claim-gallery-url]')) {
-      leveling.xpDrops.claimGalleryUrls[Number(target.dataset.xpClaimGalleryUrl)] = target.value.slice(0, 2000);
-      renderXpDropMessagePreviews();
-    }
     if (target === elements.levelingAccentColor) {
       leveling.announcements.layout.accentColor = target.value;
       renderMessagePreview();
@@ -4016,14 +3823,6 @@
       const container = leveling.announcements.additionalContainers[Number(target.dataset.levelingAdditionalAccent)];
       if (container) container.layout.accentColor = target.value;
       renderMessagePreview();
-    }
-    if (target.matches('[data-leveling-additional-thumbnail-url]')) {
-      const container = leveling.announcements.additionalContainers[Number(target.dataset.levelingAdditionalThumbnailUrl)];
-      if (container) {
-        container.layout.thumbnailUrl = target.value.slice(0, 2000);
-        container.layout.thumbnailEnabled = validMediaTemplate(target.value);
-      }
-      renderMessagePreview(false);
     }
     if (target === elements.levelingStackRewards) leveling.stackRoleRewards = target.checked;
     if (target.matches('[data-category-bulk]')) {
@@ -4042,16 +3841,6 @@
     }
     if (target.matches('[data-leveling-channel-multiplier]')) {
       leveling.channelMultipliers[target.dataset.levelingChannelMultiplier] = Math.round(clampNumber(target.value, 0, 10, 1));
-    }
-    if (target.matches('[data-leveling-gallery-url]')) {
-      leveling.announcements.layout.galleryUrls[Number(target.dataset.levelingGalleryUrl)] = target.value.slice(0, 2000);
-      renderMessagePreview(false);
-    }
-    if (target.matches('[data-leveling-additional-gallery-url]')) {
-      const [containerIndex, mediaIndex] = target.dataset.levelingAdditionalGalleryUrl.split(':').map(Number);
-      const container = leveling.announcements.additionalContainers[containerIndex];
-      if (container) container.layout.galleryUrls[mediaIndex] = target.value.slice(0, 2000);
-      renderMessagePreview(false);
     }
     if (target.matches('[data-level-reward-level]')) {
       const reward = leveling.roleRewards[Number(target.dataset.levelRewardLevel)];
@@ -4127,15 +3916,6 @@
     if (target === elements.welcomeMessagesEnabled) config.enabled = target.checked;
     if (target === elements.welcomeEventEnabled) event.enabled = target.checked;
     if (target === elements.welcomeEventChannel) event.channelId = target.value;
-    if (target.matches('[data-welcome-thumbnail-url]')) {
-      event.layout.thumbnailUrl = target.value.slice(0, 2000);
-      event.layout.thumbnailEnabled = Boolean(target.value.trim());
-      renderWelcomeMessagePreview(false);
-    }
-    if (target.matches('[data-welcome-gallery-url]')) {
-      event.layout.galleryUrls[Number(target.dataset.welcomeGalleryUrl)] = target.value.slice(0, 2000);
-      renderWelcomeMessagePreview(false);
-    }
     if (target === elements.welcomeAccentColor) {
       event.layout.accentColor = target.value;
       renderWelcomeMessagePreview();
@@ -4144,20 +3924,6 @@
       const container = event.additionalContainers[Number(target.dataset.welcomeAdditionalAccent)];
       if (container) container.layout.accentColor = target.value;
       renderWelcomeMessagePreview();
-    }
-    if (target.matches('[data-welcome-additional-thumbnail-url]')) {
-      const container = event.additionalContainers[Number(target.dataset.welcomeAdditionalThumbnailUrl)];
-      if (container) {
-        container.layout.thumbnailUrl = target.value.slice(0, 2000);
-        container.layout.thumbnailEnabled = validMemberMediaTemplate(target.value);
-      }
-      renderWelcomeMessagePreview(false);
-    }
-    if (target.matches('[data-welcome-additional-gallery-url]')) {
-      const [containerIndex, mediaIndex] = target.dataset.welcomeAdditionalGalleryUrl.split(':').map(Number);
-      const container = event.additionalContainers[containerIndex];
-      if (container) container.layout.galleryUrls[mediaIndex] = target.value.slice(0, 2000);
-      renderWelcomeMessagePreview(false);
     }
     refreshDirty();
   }
@@ -4175,23 +3941,8 @@
     if (target === elements.reactionRoleEnabled) draft.enabled = target.checked;
     if (target === elements.reactionRoleAccentColor) { draft.message.layout.accentColor = target.value; renderReactionRoleMessage(); }
     if (target === elements.reactionRoleChannel) { draft.channelId = target.value; renderReactionRoleChannel(); }
-    if (target.matches('[data-reaction-thumbnail-url]')) {
-      draft.message.layout.thumbnailUrl = target.value.slice(0, 2000); draft.message.layout.thumbnailEnabled = validTemplateMedia(target.value); renderReactionRoleMessage();
-    }
-    if (target.matches('[data-reaction-gallery-url]')) {
-      draft.message.layout.galleryUrls[Number(target.dataset.reactionGalleryUrl)] = target.value.slice(0, 2000); renderReactionRoleMessage();
-    }
     if (target.matches('[data-reaction-additional-accent]')) {
       const container = draft.message.additionalContainers[Number(target.dataset.reactionAdditionalAccent)]; if (container) container.layout.accentColor = target.value; renderReactionRoleMessage();
-    }
-    if (target.matches('[data-reaction-additional-thumbnail-url]')) {
-      const container = draft.message.additionalContainers[Number(target.dataset.reactionAdditionalThumbnailUrl)];
-      if (container) { container.layout.thumbnailUrl = target.value.slice(0, 2000); container.layout.thumbnailEnabled = validTemplateMedia(target.value); }
-      renderReactionRoleMessage();
-    }
-    if (target.matches('[data-reaction-additional-gallery-url]')) {
-      const [containerIndex, mediaIndex] = target.dataset.reactionAdditionalGalleryUrl.split(':').map(Number);
-      const container = draft.message.additionalContainers[containerIndex]; if (container) container.layout.galleryUrls[mediaIndex] = target.value.slice(0, 2000); renderReactionRoleMessage();
     }
     if (target.matches('[data-rr-button-label]')) { draft.buttons[Number(target.dataset.rrButtonLabel)].label = target.value.slice(0, 80); renderReactionRoleControlPreview(); }
     if (target.matches('[data-rr-button-role]')) draft.buttons[Number(target.dataset.rrButtonRole)].roleId = target.value;
@@ -4212,23 +3963,6 @@
     input.value = `${input.value.slice(0, start)}${token}${input.value.slice(end)}`.slice(0, 4000);
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.focus(); input.setSelectionRange(start + token.length, start + token.length);
-  }
-
-  async function uploadReactionRoleMedia(input) {
-    const file = input.files?.[0]; const draft = state.reactionRoleDraft;
-    if (!file || !draft) return;
-    if (!file.type.startsWith('image/') || file.size > 10 * 1024 * 1024) { input.value = ''; return showToast(file.size > 10 * 1024 * 1024 ? 'Images must be 10 MB or smaller.' : 'Upload an image file.', 'error'); }
-    const label = input.closest('.media-upload'); label?.classList.add('uploading');
-    try {
-      const result = await api(`/api/guilds/${state.guildId}/message-media`, { method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }) });
-      const containerIndex = Number(input.dataset.additionalContainerIndex);
-      const layout = Number.isInteger(containerIndex) ? draft.message.additionalContainers[containerIndex]?.layout : draft.message.layout;
-      if (!layout) throw new Error('That container no longer exists.');
-      if (input.dataset.reactionMediaUpload === 'thumbnail') { layout.thumbnailUrl = result.url; layout.thumbnailEnabled = true; }
-      else { const index = Number(input.dataset.mediaIndex); if (Number.isInteger(index) && index >= 0 && index < layout.galleryUrls.length) layout.galleryUrls[index] = result.url; else if (layout.galleryUrls.length < 10) layout.galleryUrls.push(result.url); }
-      renderReactionRoleMessage(); refreshDirty(); showToast('Image uploaded. Save the Reaction Role when ready.');
-    } catch (error) { showToast(error.message || 'Image upload failed.', 'error'); }
-    finally { label?.classList.remove('uploading'); input.value = ''; }
   }
 
   function addLevelReward() {
@@ -5418,13 +5152,13 @@
     await api('/auth/logout', { method: 'POST', body: '{}' }).catch(() => null);
     location.assign('/admin');
   });
-  const isInlineMediaPickerInput = (target) => Boolean(target.closest?.('.thumbnail-inline-picker, .media-slot-picker, .crate-media-picker'));
+  const isCrateMediaPickerInput = (target) => Boolean(target.closest?.('.crate-media-picker'));
   elements.levelingView.addEventListener('input', (event) => {
-    if (!isInlineMediaPickerInput(event.target)) updateLevelingFromControl(event.target);
+    if (!isCrateMediaPickerInput(event.target)) updateLevelingFromControl(event.target);
   });
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
   elements.welcomeMessagesView.addEventListener('input', (event) => {
-    if (!isInlineMediaPickerInput(event.target)) updateMemberMessagesFromControl(event.target);
+    if (!isCrateMediaPickerInput(event.target)) updateMemberMessagesFromControl(event.target);
   });
   elements.welcomeMessagesView.addEventListener('change', (event) => updateMemberMessagesFromControl(event.target));
   elements.gamesView.addEventListener('change', (event) => {
@@ -5455,11 +5189,11 @@
   elements.messageTemplatesView.addEventListener('input', (event) => {
     if (event.target === elements.templateSearch) return renderTemplateList();
     if (event.target === elements.templateJsonEditor) return updateTemplateJsonFromInput();
-    if (!isInlineMediaPickerInput(event.target)) updateTemplateDraftFromControl(event.target);
+    if (!isCrateMediaPickerInput(event.target)) updateTemplateDraftFromControl(event.target);
   });
   elements.messageTemplatesView.addEventListener('change', (event) => updateTemplateDraftFromControl(event.target));
   elements.reactionRolesView.addEventListener('input', (event) => {
-    if (!isInlineMediaPickerInput(event.target)) updateReactionRoleFromControl(event.target);
+    if (!isCrateMediaPickerInput(event.target)) updateReactionRoleFromControl(event.target);
   });
   elements.reactionRolesView.addEventListener('change', (event) => updateReactionRoleFromControl(event.target));
   document.addEventListener('click', (event) => {
@@ -5484,49 +5218,13 @@
       return;
     }
     if (!event.target.closest('[data-role-listbox]')) closeRoleListboxes();
-    const galleryTile = event.target.closest('[data-toggle-media-slot]');
-    if (galleryTile) {
-      const picker = galleryTile.closest('.media-slot')?.querySelector('.media-slot-picker');
-      if (picker) {
-        picker.hidden = !picker.hidden;
-        galleryTile.setAttribute('aria-expanded', String(!picker.hidden));
-        if (!picker.hidden) picker.querySelector('input')?.focus();
-      }
-      return;
-    }
-    const thumbnailTile = event.target.closest('[data-toggle-thumbnail-tile]');
-    if (thumbnailTile) {
-      const picker = thumbnailTile.closest('.composer-thumbnail-editor')?.querySelector('.thumbnail-inline-picker');
-      if (picker) {
-        picker.hidden = !picker.hidden;
-        thumbnailTile.setAttribute('aria-expanded', String(!picker.hidden));
-        if (!picker.hidden) picker.querySelector('input')?.focus();
-      }
-      return;
-    }
-    const remove = event.target.closest('[data-shared-thumbnail-remove]');
-    if (!remove) return;
-    const [scope, indexText] = remove.dataset.sharedThumbnailRemove.split(':');
-    const index = indexText === 'main' ? null : Number(indexText);
-    let layout = null;
-    let render = null;
-    if (scope === 'welcome') { layout = index === null ? currentMemberMessage()?.layout : currentMemberMessage()?.additionalContainers[index]?.layout; render = renderWelcomeMessagePreview; }
-    if (scope === 'template') { layout = index === null ? state.templateDraft?.layout : state.templateDraft?.additionalContainers[index]?.layout; render = renderTemplateComposerPreview; }
-    if (scope === 'reaction') { layout = index === null ? state.reactionRoleDraft?.message?.layout : state.reactionRoleDraft?.message?.additionalContainers[index]?.layout; render = renderReactionRoleMessage; }
-    if (scope === 'leveling') { layout = state.config?.leveling?.announcements?.additionalContainers[index]?.layout; render = renderMessagePreview; }
-    if (!layout) return;
-    layout.thumbnailEnabled = false;
-    layout.thumbnailUrl = '';
-    render();
-    refreshDirty();
-  });
-  document.addEventListener('change', (event) => {
-    if (!event.target.closest?.('.composer-thumbnail-editor')) return;
-    if (event.target.dataset.additionalContainerIndex !== undefined) return;
-    if (event.target.matches('[data-welcome-media-upload]')) uploadWelcomeMedia(event.target);
-    else if (event.target.matches('[data-template-media-upload]')) uploadTemplateMedia(event.target);
-    else if (event.target.matches('[data-reaction-media-upload]')) uploadReactionRoleMedia(event.target);
-    else if (event.target.matches('[data-leveling-media-upload]')) uploadLevelingMedia(event.target);
+    const addMedia = event.target.closest('[data-media-add]');
+    if (addMedia) return addGalleryTile(addMedia.dataset.mediaAdd, Number(addMedia.dataset.mediaContainer || -1));
+    const removeMediaButton = event.target.closest('[data-media-remove]');
+    if (removeMediaButton) return removeMedia(removeMediaButton);
+    const mediaTrigger = event.target.closest('[data-media-trigger]');
+    if (mediaTrigger) return openMediaPopover(mediaTrigger);
+    if (state.mediaPopover && !state.mediaPopover.element.contains(event.target)) closeMediaPopover();
   });
   document.addEventListener('keydown', (event) => {
     const trigger = event.target.closest?.('.role-listbox-trigger');
@@ -5614,41 +5312,6 @@
     if (upload) uploadXpDropMedia(upload);
     else if (event.target.matches('[data-xp-drop-image-url]')) renderXpDropList();
   });
-  elements.levelingThumbnailControl?.addEventListener('click', () => {
-    if (!elements.levelingThumbnailPanel) return;
-    elements.levelingThumbnailPanel.hidden = !elements.levelingThumbnailPanel.hidden;
-    if (!elements.levelingThumbnailPanel.hidden) {
-      if (elements.xpDropThumbnailPanel) elements.xpDropThumbnailPanel.hidden = true;
-      if (elements.xpClaimThumbnailPanel) elements.xpClaimThumbnailPanel.hidden = true;
-      renderThumbnailPanel('leveling');
-    }
-  });
-  elements.xpDropThumbnailControl?.addEventListener('click', () => {
-    if (!elements.xpDropThumbnailPanel) return;
-    elements.xpDropThumbnailPanel.hidden = !elements.xpDropThumbnailPanel.hidden;
-    if (!elements.xpDropThumbnailPanel.hidden) {
-      if (elements.levelingThumbnailPanel) elements.levelingThumbnailPanel.hidden = true;
-      if (elements.xpClaimThumbnailPanel) elements.xpClaimThumbnailPanel.hidden = true;
-      renderThumbnailPanel('xpDrop');
-    }
-  });
-  elements.xpClaimThumbnailControl?.addEventListener('click', () => {
-    if (!elements.xpClaimThumbnailPanel) return;
-    elements.xpClaimThumbnailPanel.hidden = !elements.xpClaimThumbnailPanel.hidden;
-    if (!elements.xpClaimThumbnailPanel.hidden) {
-      if (elements.levelingThumbnailPanel) elements.levelingThumbnailPanel.hidden = true;
-      if (elements.xpDropThumbnailPanel) elements.xpDropThumbnailPanel.hidden = true;
-      renderThumbnailPanel('xpClaim');
-    }
-  });
-  for (const panel of [elements.levelingThumbnailPanel, elements.xpDropThumbnailPanel, elements.xpClaimThumbnailPanel]) {
-    panel?.addEventListener('change', (event) => {
-      const levelingUpload = event.target.closest('[data-leveling-media-upload]');
-      if (levelingUpload) uploadLevelingMedia(levelingUpload);
-      const dropUpload = event.target.closest('[data-xp-drop-media-upload], [data-xp-claim-media-upload]');
-      if (dropUpload) uploadXpDropMedia(dropUpload);
-    });
-  }
   elements.levelingChannels?.addEventListener('click', (event) => {
     const btn = event.target.closest('[data-category-collapse]');
     if (btn) {
@@ -5680,29 +5343,9 @@
       announcements.additionalContainers.splice(Number(removeContainer.dataset.removeLevelingAdditionalContainer), 1);
       renderMessagePreview(); refreshDirty(); return;
     }
-    const addGallery = event.target.closest('[data-add-leveling-additional-gallery]');
-    if (addGallery) {
-      const layout = announcements.additionalContainers[Number(addGallery.dataset.addLevelingAdditionalGallery)]?.layout;
-      if (!layout || layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-      layout.galleryUrls.push(''); renderMessagePreview(); refreshDirty(); return;
-    }
-    const removeGallery = event.target.closest('[data-remove-leveling-additional-gallery]');
-    if (removeGallery) {
-      const [containerIndex, mediaIndex] = removeGallery.dataset.removeLevelingAdditionalGallery.split(':').map(Number);
-      announcements.additionalContainers[containerIndex]?.layout.galleryUrls.splice(mediaIndex, 1);
-      renderMessagePreview(); refreshDirty();
-    }
-  });
-  elements.levelingAdditionalContainers.addEventListener('change', (event) => {
-    const upload = event.target.closest('[data-leveling-media-upload]');
-    if (upload) uploadLevelingMedia(upload);
   });
   elements.levelingVariablesToggle?.addEventListener('click', () => toggleComposerPanel('variables'));
-  elements.levelingGalleryAdd.addEventListener('click', () => {
-    const gallery = state.config.leveling.announcements.layout.galleryUrls;
-    if (gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-    gallery.push(''); state.levelingComposerPanel = 'gallery'; renderMessagePreview(); refreshDirty();
-  });
+  elements.levelingGalleryAdd.addEventListener('click', () => addGalleryTile('leveling'));
   elements.levelingAccentButton.addEventListener('click', () => elements.levelingAccentColor.click());
   elements.levelingComposerPanel.addEventListener('click', async (event) => {
     const variable = event.target.closest('[data-copy-variable]');
@@ -5710,24 +5353,6 @@
       await navigator.clipboard?.writeText?.(variable.dataset.copyVariable).catch(() => null);
       return showToast(`${variable.dataset.copyVariable} copied.`);
     }
-    if (event.target.closest('[data-add-gallery-url]')) {
-      const gallery = state.config.leveling.announcements.layout.galleryUrls;
-      if (gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-      gallery.push('');
-      renderComposerPanel();
-      refreshDirty();
-      elements.levelingComposerPanel.querySelector('[data-leveling-gallery-url]:last-of-type')?.focus();
-      return;
-    }
-    const button = event.target.closest('[data-remove-gallery]');
-    if (!button) return;
-    state.config.leveling.announcements.layout.galleryUrls.splice(Number(button.dataset.removeGallery), 1);
-    renderMessagePreview();
-    refreshDirty();
-  });
-  elements.levelingComposerPanel.addEventListener('change', (event) => {
-    const upload = event.target.closest('[data-leveling-media-upload]');
-    if (upload) uploadLevelingMedia(upload);
   });
   elements.welcomeMessagesView.querySelector('.member-message-tabs').addEventListener('click', (event) => {
     const button = event.target.closest('[data-member-event]');
@@ -5759,52 +5384,13 @@
       current.additionalContainers.splice(Number(removeContainer.dataset.removeWelcomeAdditionalContainer), 1);
       renderWelcomeMessagePreview(); refreshDirty(); return;
     }
-    const addGallery = event.target.closest('[data-add-welcome-additional-gallery]');
-    if (addGallery) {
-      const layout = current.additionalContainers[Number(addGallery.dataset.addWelcomeAdditionalGallery)]?.layout;
-      if (!layout || layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-      layout.galleryUrls.push(''); renderWelcomeMessagePreview(); refreshDirty(); return;
-    }
-    const removeGallery = event.target.closest('[data-remove-welcome-additional-gallery]');
-    if (removeGallery) {
-      const [containerIndex, mediaIndex] = removeGallery.dataset.removeWelcomeAdditionalGallery.split(':').map(Number);
-      current.additionalContainers[containerIndex]?.layout.galleryUrls.splice(mediaIndex, 1);
-      renderWelcomeMessagePreview(); refreshDirty();
-    }
-  });
-  elements.welcomeAdditionalContainers.addEventListener('change', (event) => {
-    const upload = event.target.closest('[data-welcome-media-upload]');
-    if (upload) uploadWelcomeMedia(upload);
   });
   elements.welcomeVariablesToggle.addEventListener('click', () => toggleWelcomeComposerPanel('variables'));
-  elements.welcomeGalleryAdd.addEventListener('click', () => {
-    const gallery = currentMemberMessage()?.layout.galleryUrls;
-    if (!gallery || gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-    gallery.push(''); state.memberMessageComposerPanel = 'gallery'; renderWelcomeMessagePreview(); refreshDirty();
-  });
+  elements.welcomeGalleryAdd.addEventListener('click', () => addGalleryTile('welcome'));
   elements.welcomeAccentButton.addEventListener('click', () => elements.welcomeAccentColor.click());
   elements.welcomeComposerPanel.addEventListener('click', (event) => {
     const variable = event.target.closest('[data-insert-member-variable]');
     if (variable) return insertMemberMessageVariable(variable.dataset.insertMemberVariable);
-    const current = currentMemberMessage();
-    if (!current) return;
-    if (event.target.closest('[data-add-welcome-gallery-url]')) {
-      if (current.layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-      current.layout.galleryUrls.push('');
-      renderWelcomeComposerPanel();
-      refreshDirty();
-      elements.welcomeComposerPanel.querySelector('[data-welcome-gallery-url]:last-of-type')?.focus();
-      return;
-    }
-    const remove = event.target.closest('[data-remove-welcome-gallery]');
-    if (!remove) return;
-    current.layout.galleryUrls.splice(Number(remove.dataset.removeWelcomeGallery), 1);
-    renderWelcomeMessagePreview();
-    refreshDirty();
-  });
-  elements.welcomeComposerPanel.addEventListener('change', (event) => {
-    const upload = event.target.closest('[data-welcome-media-upload]');
-    if (upload) uploadWelcomeMedia(upload);
   });
   for (const button of [elements.templateCreateButton, elements.templateListCreate, elements.templateEmptyCreate]) {
     button.addEventListener('click', () => createMessageTemplate().catch((error) => showToast(error.message, 'error')));
@@ -6003,50 +5589,15 @@
       state.templateDraft.additionalContainers.splice(Number(removeContainer.dataset.removeTemplateAdditionalContainer), 1);
       renderTemplateComposerPreview(); return;
     }
-    const addGallery = event.target.closest('[data-add-template-additional-gallery]');
-    if (addGallery) {
-      const layout = state.templateDraft.additionalContainers[Number(addGallery.dataset.addTemplateAdditionalGallery)]?.layout;
-      if (!layout || layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-      layout.galleryUrls.push(''); renderTemplateComposerPreview(); return;
-    }
-    const removeGallery = event.target.closest('[data-remove-template-additional-gallery]');
-    if (removeGallery) {
-      const [containerIndex, mediaIndex] = removeGallery.dataset.removeTemplateAdditionalGallery.split(':').map(Number);
-      state.templateDraft.additionalContainers[containerIndex]?.layout.galleryUrls.splice(mediaIndex, 1);
-      renderTemplateComposerPreview();
-    }
-  });
-  elements.templateAdditionalContainers.addEventListener('change', (event) => {
-    const upload = event.target.closest('[data-template-media-upload]');
-    if (upload) uploadTemplateMedia(upload);
   });
   elements.templateVariablesToggle.addEventListener('click', () => {
     state.templateComposerPanel = state.templateComposerPanel === 'variables' ? '' : 'variables'; renderTemplateComposerPanel();
   });
-  elements.templateGalleryAdd.addEventListener('click', () => {
-    const gallery = state.templateDraft?.layout.galleryUrls;
-    if (!gallery || gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-    gallery.push(''); state.templateComposerPanel = 'gallery'; renderTemplateComposerPreview();
-  });
+  elements.templateGalleryAdd.addEventListener('click', () => addGalleryTile('template'));
   elements.templateAccentButton.addEventListener('click', () => elements.templateAccentColor.click());
   elements.templateComposerPanel.addEventListener('click', (event) => {
     const variable = event.target.closest('[data-insert-template-variable]');
     if (variable) return insertTemplateVariable(variable.dataset.insertTemplateVariable);
-    if (!state.templateDraft) return;
-    if (event.target.closest('[data-add-template-gallery]')) {
-      if (state.templateDraft.layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-      state.templateDraft.layout.galleryUrls.push('');
-      renderTemplateComposerPanel(); syncTemplateJson(); refreshTemplateDirty();
-      return elements.templateComposerPanel.querySelector('[data-template-gallery-url]:last-of-type')?.focus();
-    }
-    const remove = event.target.closest('[data-remove-template-gallery]');
-    if (!remove) return;
-    state.templateDraft.layout.galleryUrls.splice(Number(remove.dataset.removeTemplateGallery), 1);
-    renderTemplateComposerPreview();
-  });
-  elements.templateComposerPanel.addEventListener('change', (event) => {
-    const upload = event.target.closest('[data-template-media-upload]');
-    if (upload) uploadTemplateMedia(upload);
   });
   elements.templateJsonFormat.addEventListener('click', () => {
     if (!updateTemplateJsonFromInput()) return;
@@ -6115,26 +5666,15 @@
   elements.reactionRoleContainerToggle.addEventListener('click', () => { if (!state.reactionRoleDraft) return; state.reactionRoleDraft.message.layout.container = !state.reactionRoleDraft.message.layout.container; renderReactionRoleEditor(); });
   elements.reactionRoleAdditionalContainer.addEventListener('click', () => { const draft = state.reactionRoleDraft; if (!draft || draft.message.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS) return; draft.message.additionalContainers.push(newAdditionalContainer(draft.message.layout.accentColor)); renderReactionRoleEditor(); });
   elements.reactionRoleVariablesToggle.addEventListener('click', () => { state.reactionRoleComposerPanel = state.reactionRoleComposerPanel === 'variables' ? '' : 'variables'; renderReactionRoleComposerPanel(); });
-  elements.reactionRoleGalleryToggle.addEventListener('click', () => {
-    const gallery = state.reactionRoleDraft?.message?.layout.galleryUrls;
-    if (!gallery || gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-    gallery.push(''); state.reactionRoleComposerPanel = 'gallery'; renderReactionRoleEditor();
-  });
+  elements.reactionRoleGalleryToggle.addEventListener('click', () => addGalleryTile('reaction'));
   elements.reactionRoleAccentButton.addEventListener('click', () => elements.reactionRoleAccentColor.click());
   elements.reactionRoleComposerPanel.addEventListener('click', (event) => {
     const variable = event.target.closest('[data-insert-reaction-variable]'); if (variable) return insertReactionRoleVariable(variable.dataset.insertReactionVariable);
-    const draft = state.reactionRoleDraft; if (!draft) return;
-    if (event.target.closest('[data-add-reaction-gallery]')) { if (draft.message.layout.galleryUrls.length < 10) draft.message.layout.galleryUrls.push(''); renderReactionRoleEditor(); return; }
-    const remove = event.target.closest('[data-remove-reaction-gallery]'); if (remove) { draft.message.layout.galleryUrls.splice(Number(remove.dataset.removeReactionGallery), 1); renderReactionRoleEditor(); }
   });
-  elements.reactionRoleComposerPanel.addEventListener('change', (event) => { const input = event.target.closest('[data-reaction-media-upload]'); if (input) uploadReactionRoleMedia(input); });
   elements.reactionRoleAdditionalContainers.addEventListener('click', (event) => {
     const draft = state.reactionRoleDraft; if (!draft) return;
     const remove = event.target.closest('[data-remove-reaction-additional-container]'); if (remove) { draft.message.additionalContainers.splice(Number(remove.dataset.removeReactionAdditionalContainer), 1); renderReactionRoleEditor(); return; }
-    const addGallery = event.target.closest('[data-add-reaction-additional-gallery]'); if (addGallery) { const layout = draft.message.additionalContainers[Number(addGallery.dataset.addReactionAdditionalGallery)]?.layout; if (layout?.galleryUrls.length < 10) layout.galleryUrls.push(''); renderReactionRoleEditor(); return; }
-    const removeGallery = event.target.closest('[data-remove-reaction-additional-gallery]'); if (removeGallery) { const [containerIndex, mediaIndex] = removeGallery.dataset.removeReactionAdditionalGallery.split(':').map(Number); draft.message.additionalContainers[containerIndex]?.layout.galleryUrls.splice(mediaIndex, 1); renderReactionRoleEditor(); }
   });
-  elements.reactionRoleAdditionalContainers.addEventListener('change', (event) => { const input = event.target.closest('[data-reaction-media-upload]'); if (input) uploadReactionRoleMedia(input); });
 
   document.addEventListener('selectionchange', () => rememberInlineTextCaret(document.activeElement));
   document.addEventListener('pointerdown', () => rememberInlineTextCaret(document.activeElement), true);
@@ -6146,16 +5686,8 @@
   elements.templateEmojiToggle.addEventListener('click', () => openEmojiPicker('messageTemplate').catch((error) => showToast(error.message, 'error')));
   elements.xpDropEmojiToggle.addEventListener('click', () => openEmojiPicker('xpDrop').catch((error) => showToast(error.message, 'error')));
   elements.xpClaimEmojiToggle.addEventListener('click', () => openEmojiPicker('xpClaim').catch((error) => showToast(error.message, 'error')));
-  elements.xpDropGalleryAdd.addEventListener('click', () => {
-    const gallery = state.config?.leveling?.xpDrops?.dropGalleryUrls;
-    if (!gallery || gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-    gallery.push(''); elements.xpDropThumbnailPanel.hidden = false; renderThumbnailPanel('xpDrop'); refreshDirty();
-  });
-  elements.xpClaimGalleryAdd.addEventListener('click', () => {
-    const gallery = state.config?.leveling?.xpDrops?.claimGalleryUrls;
-    if (!gallery || gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
-    gallery.push(''); elements.xpClaimThumbnailPanel.hidden = false; renderThumbnailPanel('xpClaim'); refreshDirty();
-  });
+  elements.xpDropGalleryAdd.addEventListener('click', () => addGalleryTile('xpDrop'));
+  elements.xpClaimGalleryAdd.addEventListener('click', () => addGalleryTile('xpClaim'));
   elements.reactionRoleEmojiToggle.addEventListener('click', () => openEmojiPicker('reactionRole').catch((error) => showToast(error.message, 'error')));
   elements.emojiPickerClose.addEventListener('click', closeEmojiPicker);
   elements.emojiPickerSearch.addEventListener('input', () => {
@@ -6249,120 +5781,19 @@
     if (autocompleteState.active && autocompleteState.input) {
       positionAutocompletePopup(autocompleteState.input);
     }
+    positionMediaPopover();
   }, true);
 
   window.addEventListener('resize', () => {
     if (autocompleteState.active && autocompleteState.input) {
       positionAutocompletePopup(autocompleteState.input);
     }
+    positionMediaPopover();
   });
 
   document.addEventListener('click', (event) => {
     if (autocompleteState.active && !autocompleteState.element?.contains(event.target) && event.target !== autocompleteState.input) {
       closeAutocomplete();
-    }
-    const removeDropGallery = event.target.closest('[data-remove-xp-drop-gallery]');
-    if (removeDropGallery) {
-      state.config.leveling.xpDrops.dropGalleryUrls.splice(Number(removeDropGallery.dataset.removeXpDropGallery), 1);
-      renderXpDropMessagePreviews(); renderThumbnailPanel('xpDrop'); refreshDirty(); return;
-    }
-    const removeClaimGallery = event.target.closest('[data-remove-xp-claim-gallery]');
-    if (removeClaimGallery) {
-      state.config.leveling.xpDrops.claimGalleryUrls.splice(Number(removeClaimGallery.dataset.removeXpClaimGallery), 1);
-      renderXpDropMessagePreviews(); renderThumbnailPanel('xpClaim'); refreshDirty(); return;
-    }
-    const closeBtn = event.target.closest('[data-close-thumbnail]');
-    if (closeBtn) {
-      const scope = closeBtn.dataset.closeThumbnail;
-      if (scope === 'leveling' && elements.levelingThumbnailPanel) elements.levelingThumbnailPanel.hidden = true;
-      if (scope === 'xpDrop' && elements.xpDropThumbnailPanel) elements.xpDropThumbnailPanel.hidden = true;
-      if (scope === 'xpClaim' && elements.xpClaimThumbnailPanel) elements.xpClaimThumbnailPanel.hidden = true;
-      return;
-    }
-    const varBtn = event.target.closest('[data-insert-thumb-var]');
-    if (varBtn) {
-      const token = varBtn.dataset.insertThumbVar;
-      const scope = varBtn.dataset.thumbScope;
-      if (scope === 'leveling' && state.config?.leveling?.announcements?.layout) {
-        state.config.leveling.announcements.layout.thumbnailUrl = token;
-        state.config.leveling.announcements.layout.thumbnailEnabled = true;
-        renderMessagePreview(false);
-        renderThumbnailPanel('leveling');
-        updateThumbnailControlUI('leveling');
-        refreshDirty();
-      } else if (scope === 'xpDrop' && state.config?.leveling?.xpDrops) {
-        state.config.leveling.xpDrops.dropThumbnailUrl = token;
-        state.config.leveling.xpDrops.dropThumbnailEnabled = true;
-        renderXpDropMessagePreviews();
-        renderThumbnailPanel('xpDrop');
-        updateThumbnailControlUI('xpDrop');
-        refreshDirty();
-      } else if (scope === 'xpClaim' && state.config?.leveling?.xpDrops) {
-        state.config.leveling.xpDrops.claimThumbnailUrl = token;
-        state.config.leveling.xpDrops.claimThumbnailEnabled = true;
-        renderXpDropMessagePreviews();
-        renderThumbnailPanel('xpClaim');
-        updateThumbnailControlUI('xpClaim');
-        refreshDirty();
-      }
-      return;
-    }
-    const removeBtn = event.target.closest('[data-remove-thumbnail]');
-    if (removeBtn) {
-      const scope = removeBtn.dataset.removeThumbnail;
-      if (scope === 'leveling' && state.config?.leveling?.announcements?.layout) {
-        state.config.leveling.announcements.layout.thumbnailEnabled = false;
-        renderMessagePreview(false);
-        renderThumbnailPanel('leveling');
-        updateThumbnailControlUI('leveling');
-        refreshDirty();
-      } else if (scope === 'xpDrop' && state.config?.leveling?.xpDrops) {
-        state.config.leveling.xpDrops.dropThumbnailEnabled = false;
-        renderXpDropMessagePreviews();
-        renderThumbnailPanel('xpDrop');
-        updateThumbnailControlUI('xpDrop');
-        refreshDirty();
-      } else if (scope === 'xpClaim' && state.config?.leveling?.xpDrops) {
-        state.config.leveling.xpDrops.claimThumbnailEnabled = false;
-        renderXpDropMessagePreviews();
-        renderThumbnailPanel('xpClaim');
-        updateThumbnailControlUI('xpClaim');
-        refreshDirty();
-      }
-      return;
-    }
-    const enableBtn = event.target.closest('[data-enable-thumbnail]');
-    if (enableBtn) {
-      const scope = enableBtn.dataset.enableThumbnail;
-      if (scope === 'leveling' && state.config?.leveling?.announcements?.layout) {
-        state.config.leveling.announcements.layout.thumbnailEnabled = true;
-        renderMessagePreview(false);
-        renderThumbnailPanel('leveling');
-        updateThumbnailControlUI('leveling');
-        refreshDirty();
-      } else if (scope === 'xpDrop' && state.config?.leveling?.xpDrops) {
-        state.config.leveling.xpDrops.dropThumbnailEnabled = true;
-        renderXpDropMessagePreviews();
-        renderThumbnailPanel('xpDrop');
-        updateThumbnailControlUI('xpDrop');
-        refreshDirty();
-      } else if (scope === 'xpClaim' && state.config?.leveling?.xpDrops) {
-        state.config.leveling.xpDrops.claimThumbnailEnabled = true;
-        renderXpDropMessagePreviews();
-        renderThumbnailPanel('xpClaim');
-        updateThumbnailControlUI('xpClaim');
-        refreshDirty();
-      }
-      return;
-    }
-    if (elements.levelingThumbnailPanel && !elements.levelingThumbnailPanel.hidden && !elements.levelingThumbnailPanel.contains(event.target) && !elements.levelingThumbnailControl?.contains(event.target)) {
-      elements.levelingThumbnailPanel.hidden = true;
-    }
-    if (elements.xpDropThumbnailPanel && !elements.xpDropThumbnailPanel.hidden && !elements.xpDropThumbnailPanel.contains(event.target) && !elements.xpDropThumbnailControl?.contains(event.target)) {
-      elements.xpDropThumbnailPanel.hidden = true;
-    }
-    if (elements.xpClaimThumbnailPanel && !elements.xpClaimThumbnailPanel.hidden && !elements.xpClaimThumbnailPanel.contains(event.target) && !elements.xpClaimThumbnailControl?.contains(event.target)) {
-      elements.xpClaimThumbnailPanel.hidden = true;
     }
     if (!event.target.closest('.account-wrap')) {
       elements.accountMenu.hidden = true;
@@ -6371,6 +5802,7 @@
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    if (state.mediaPopover) closeMediaPopover();
     elements.accountMenu.hidden = true;
     elements.userChip.setAttribute('aria-expanded', 'false');
     document.body.classList.remove('mobile-nav-open');
